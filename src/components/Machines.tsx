@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AlertCircle, CheckCircle2, Clock, Cog, Edit, Plus, Trash2, RefreshCw, Loader2, FileSpreadsheet, FileText } from 'lucide-react';
 import { useMachines } from '../hooks/useMachines';
 import { useAuth } from '../context/AuthContext';
 import { exportMachinesToExcel, exportMachinesToPDF } from '../utils/export';
+import { useTableState } from '../hooks/useTableState';
+import { TableFilters, FilterConfig } from './common/TableFilters';
+import { SortableHeader, TableHeader } from './common/SortableHeader';
+import { Pagination } from './common/Pagination';
+import { DeleteConfirmModal, CascadeEffect } from './common/DeleteConfirmModal';
+import { invoke } from '@tauri-apps/api/core';
 import type { Machine, MachineStatus, MachineCapacity, CreateMachineInput, UpdateMachineInput, MachineHistoryResponse } from '../types';
 
 export function Machines() {
@@ -60,14 +66,32 @@ export function Machines() {
     }
   };
 
-  const handleDeleteMachine = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this machine?')) return;
+  const [deleteModal, setDeleteModal] = useState<{ machine: Machine; cascadeEffects: CascadeEffect[] } | null>(null);
+
+  const handleDeleteMachine = async (machine: Machine) => {
+    // Fetch cascade effects before showing modal
+    try {
+      const token = localStorage.getItem('vmc_auth_token') || '';
+      const impact = await invoke<{ cascade_effects: CascadeEffect[] }>('check_machine_delete_impact', {
+        token,
+        machineId: machine.id
+      });
+      setDeleteModal({ machine, cascadeEffects: impact.cascade_effects });
+    } catch (err) {
+      // If cascade check fails, show modal without effects
+      setDeleteModal({ machine, cascadeEffects: [] });
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal) return;
     setActionLoading(true);
     setActionError(null);
     try {
-      await deleteMachine(id);
+      await deleteMachine(deleteModal.machine.id);
       setSelectedMachine(null);
       setIsEditing(false);
+      setDeleteModal(null);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Delete failed');
     } finally {
@@ -162,7 +186,7 @@ export function Machines() {
           history={machineHistory}
           onBack={handleBack}
           onEdit={() => setIsEditing(true)}
-          onDelete={() => handleDeleteMachine(selectedMachine.id)}
+          onDelete={() => handleDeleteMachine(selectedMachine)}
           canEdit={canEdit}
           isAdmin={isAdmin}
         />
@@ -174,6 +198,19 @@ export function Machines() {
           onDelete={handleDeleteMachine}
           canEdit={canEdit}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal && (
+        <DeleteConfirmModal
+          isOpen={true}
+          onClose={() => setDeleteModal(null)}
+          onConfirm={confirmDelete}
+          itemType="Machine"
+          itemName={deleteModal.machine.name}
+          cascadeEffects={deleteModal.cascadeEffects}
+          loading={actionLoading}
         />
       )}
     </div>
@@ -206,77 +243,185 @@ function MachineTable({
   machines: Machine[];
   onView: (machine: Machine) => void;
   onEdit: (machine: Machine) => void;
-  onDelete: (id: number) => void;
+  onDelete: (machine: Machine) => void;
   canEdit: boolean;
   isAdmin: boolean;
 }) {
+  // Extract unique values for filter options
+  const filterOptions = useMemo(() => {
+    const statuses = [...new Set(machines.map(m => m.status))];
+    const capacities = [...new Set(machines.map(m => m.capacity).filter(Boolean))];
+    const locations = [...new Set(machines.map(m => m.location).filter(Boolean))];
+
+    return {
+      statuses: statuses.map(s => ({ value: s, label: s.charAt(0).toUpperCase() + s.slice(1) })),
+      capacities: capacities.map(c => ({ value: c as string, label: c as string })),
+      locations: locations.map(l => ({ value: l as string, label: l as string })),
+    };
+  }, [machines]);
+
+  // Filter configuration
+  const filterConfig: FilterConfig[] = useMemo(() => [
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: filterOptions.statuses,
+      placeholder: 'All Statuses',
+    },
+    {
+      key: 'capacity',
+      label: 'Capacity',
+      type: 'select',
+      options: filterOptions.capacities,
+      placeholder: 'All Capacities',
+    },
+    {
+      key: 'location',
+      label: 'Location',
+      type: 'select',
+      options: filterOptions.locations,
+      placeholder: 'All Locations',
+    },
+  ], [filterOptions]);
+
+  // Use table state hook for filtering, sorting, and pagination
+  const {
+    paginatedItems,
+    sort,
+    setSort,
+    filters,
+    setFilter,
+    clearFilters,
+    search,
+    setSearch,
+    currentPage,
+    pageSize,
+    totalItems,
+    setPage,
+    setPageSize,
+  } = useTableState(machines, {
+    storageKey: 'machines',
+    defaultPageSize: 25,
+  });
+
   return (
-    <div className="bg-gray-800 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-gray-700">
-              <th className="text-left p-4">Machine Name</th>
-              <th className="text-left p-4">Model</th>
-              <th className="text-left p-4">Status</th>
-              <th className="text-left p-4">Capacity</th>
-              <th className="text-left p-4">Location</th>
-              <th className="text-left p-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {machines.map(machine => (
-              <tr key={machine.id} className="border-t border-gray-700 hover:bg-gray-700/50">
-                <td className="p-4">
-                  <button
-                    className="text-blue-400 hover:text-blue-300 font-medium"
-                    onClick={() => onView(machine)}
-                  >
-                    {machine.name}
-                  </button>
-                </td>
-                <td className="p-4">{machine.model}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(machine.status)}`}>
-                    {machine.status.charAt(0).toUpperCase() + machine.status.slice(1)}
-                  </span>
-                </td>
-                <td className="p-4">{machine.capacity || '-'}</td>
-                <td className="p-4">{machine.location || '-'}</td>
-                <td className="p-4">
-                  <div className="flex space-x-2">
-                    {canEdit && (
-                      <button
-                        onClick={() => onEdit(machine)}
-                        className="p-1 text-gray-400 hover:text-blue-400"
-                        title="Edit"
-                      >
-                        <Edit size={16} />
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button
-                        onClick={() => onDelete(machine.id)}
-                        className="p-1 text-gray-400 hover:text-red-400"
-                        title="Delete"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                </td>
+    <div className="space-y-4">
+      {/* Filter Bar */}
+      <TableFilters
+        filters={filterConfig}
+        values={filters}
+        onChange={setFilter}
+        onClear={clearFilters}
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search machines..."
+      />
+
+      {/* Table */}
+      <div className="bg-gray-800 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-700">
+                <SortableHeader
+                  label="Machine Name"
+                  sortKey="name"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Model"
+                  sortKey="model"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Status"
+                  sortKey="status"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Capacity"
+                  sortKey="capacity"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Location"
+                  sortKey="location"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <TableHeader label="Actions" />
               </tr>
-            ))}
-            {machines.length === 0 && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-400">
-                  No machines found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {paginatedItems.map(machine => (
+                <tr key={machine.id} className="border-t border-gray-700 hover:bg-gray-700/50">
+                  <td className="p-4">
+                    <button
+                      className="text-blue-400 hover:text-blue-300 font-medium"
+                      onClick={() => onView(machine)}
+                    >
+                      {machine.name}
+                    </button>
+                  </td>
+                  <td className="p-4">{machine.model}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(machine.status)}`}>
+                      {machine.status.charAt(0).toUpperCase() + machine.status.slice(1)}
+                    </span>
+                  </td>
+                  <td className="p-4">{machine.capacity || '-'}</td>
+                  <td className="p-4">{machine.location || '-'}</td>
+                  <td className="p-4">
+                    <div className="flex space-x-2">
+                      {canEdit && (
+                        <button
+                          onClick={() => onEdit(machine)}
+                          className="p-1 text-gray-400 hover:text-blue-400"
+                          title="Edit"
+                        >
+                          <Edit size={16} />
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <button
+                          onClick={() => onDelete(machine)}
+                          className="p-1 text-gray-400 hover:text-red-400"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {paginatedItems.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-400">
+                    {machines.length === 0 ? 'No machines found' : 'No machines match your filters'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {/* Pagination */}
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      )}
     </div>
   );
 }

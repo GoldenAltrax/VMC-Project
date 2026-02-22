@@ -1,46 +1,11 @@
-// import React, { useState } from 'react';
-// import { Sidebar } from './components/Sidebar';
-// import { Header } from './components/Header';
-// import { Dashboard } from './components/Dashboard';
-// import { Projects } from './components/Projects';
-// import { Machines } from './components/Machines';
-// import { Settings } from './components/Settings';
-// import { WeeklyPlanner } from './components/WeeklyPlanner';
-// export function App() {
-//   const [activeTab, setActiveTab] = useState('dashboard');
-//   const renderContent = () => {
-//     switch (activeTab) {
-//       case 'dashboard':
-//         return <Dashboard />;
-//       case 'projects':
-//         return <Projects />;
-//       case 'machines':
-//         return <Machines />;
-//       case 'planner':
-//         return <WeeklyPlanner />;
-//       case 'settings':
-//         return <Settings />;
-//       default:
-//         return <Dashboard />;
-//     }
-//   };
-//   return <div className="flex h-screen w-full bg-gray-900 text-gray-100">
-//       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-//       <div className="flex flex-col flex-1 overflow-hidden">
-//         <Header activeTab={activeTab} />
-//         <main className="flex-1 overflow-auto p-6">{renderContent()}</main>
-//       </div>
-//     </div>;
-// }
-
-// ---------- Old Code ----------
-
 import React, { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { Machines } from './components/Machines';
+import { Maintenance } from './components/Maintenance';
+import { Notifications } from './components/Notifications';
 import { Settings } from './components/Settings';
 import { WeeklyPlanner } from './components/WeeklyPlanner';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -56,8 +21,12 @@ export function App() {
         return <Projects />;
       case 'machines':
         return <Machines />;
+      case 'maintenance':
+        return <Maintenance />;
       case 'planner':
         return <WeeklyPlanner />;
+      case 'notifications':
+        return <Notifications />;
       case 'settings':
         return <Settings />;
       default:

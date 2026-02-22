@@ -1,20 +1,53 @@
-import React, { useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle2, Clock, Cog, Factory, PauseCircle, Percent, Timer, TrendingUp, Wrench, Loader2, X, Users, FolderKanban, BarChart3 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Activity, AlertCircle, CheckCircle2, Clock, Cog, Factory, PauseCircle, Percent, TrendingUp, Wrench, Loader2, X, Users, FolderKanban, BarChart3, RefreshCw } from 'lucide-react';
 import { useDashboard } from '../hooks/useDashboard';
 import { useMachines } from '../hooks/useMachines';
 import { useAlerts } from '../hooks/useAlerts';
-import type { DashboardStats, Machine, AlertWithDetails, MachineUtilization, ProjectProgress } from '../types';
+import type { Machine, AlertWithDetails, MachineUtilization, ProjectProgress } from '../types';
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, BarChart, Bar } from 'recharts';
+
+// Chart color constants
+const MACHINE_STATUS_COLORS: Record<string, string> = {
+  active: '#22c55e',
+  idle: '#eab308',
+  maintenance: '#3b82f6',
+  error: '#ef4444',
+};
+
+const PROJECT_STATUS_COLORS: Record<string, string> = {
+  planning: '#eab308',
+  active: '#22c55e',
+  completed: '#3b82f6',
+  'on-hold': '#f97316',
+};
 
 export function Dashboard() {
   const { stats, machineUtilization, projectProgress, loading, error, fetchAll, clearError } = useDashboard();
   const { machines, fetchMachines } = useMachines();
   const { alerts, fetchAlerts, markAsRead } = useAlerts();
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchAll();
     fetchMachines();
     fetchAlerts();
   }, [fetchAll, fetchMachines, fetchAlerts]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([fetchAll(), fetchMachines(), fetchAlerts()]);
+    setLastUpdated(new Date());
+    setIsRefreshing(false);
+  };
+
+  const formatLastUpdated = () => {
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - lastUpdated.getTime()) / 1000);
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+    return lastUpdated.toLocaleTimeString();
+  };
 
   if (loading && !stats) {
     return (
@@ -38,6 +71,25 @@ export function Dashboard() {
           </button>
         </div>
       )}
+
+      {/* Dashboard Header with Refresh */}
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard Overview</h1>
+          <p className="text-sm text-gray-400">Real-time machine and project analytics</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-gray-500">Last updated: {formatLastUpdated()}</span>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
+      </div>
 
       {/* Main Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -97,6 +149,86 @@ export function Dashboard() {
         />
       </div>
 
+      {/* Status Distribution Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Machine Status Distribution */}
+        <div className="bg-gray-800 rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Machine Status Distribution</h2>
+          {stats && stats.machine_status.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.machine_status.map(([status, count]) => ({
+                      name: status.charAt(0).toUpperCase() + status.slice(1),
+                      value: count,
+                      fill: MACHINE_STATUS_COLORS[status] || '#6b7280',
+                    }))}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {stats.machine_status.map(([status], index) => (
+                      <Cell key={`cell-${index}`} fill={MACHINE_STATUS_COLORS[status] || '#6b7280'} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                    labelStyle={{ color: '#fff' }}
+                  />
+                  <Legend
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    formatter={(value) => <span className="text-gray-300">{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">No machine data available</p>
+          )}
+        </div>
+
+        {/* Project Status Distribution */}
+        <div className="bg-gray-800 rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Project Status Distribution</h2>
+          {stats && stats.project_status.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={stats.project_status.map(([status, count]) => ({
+                    name: status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' '),
+                    count: count,
+                    fill: PROJECT_STATUS_COLORS[status] || '#6b7280',
+                  }))}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                >
+                  <XAxis type="number" tick={{ fill: '#9ca3af' }} />
+                  <YAxis dataKey="name" type="category" tick={{ fill: '#9ca3af' }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                    labelStyle={{ color: '#fff' }}
+                    cursor={{ fill: 'rgba(255,255,255,0.1)' }}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {stats.project_status.map(([status], index) => (
+                      <Cell key={`cell-${index}`} fill={PROJECT_STATUS_COLORS[status] || '#6b7280'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">No project data available</p>
+          )}
+        </div>
+      </div>
+
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Machine Status */}
@@ -136,20 +268,68 @@ export function Dashboard() {
 
       {/* Weekly Trend & Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Weekly Trend */}
+        {/* Weekly Trend - Area Chart */}
         <div className="bg-gray-800 rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold">Weekly Hours Trend</h2>
             <BarChart3 size={18} className="text-gray-400" />
           </div>
-          <div className="space-y-3">
-            {stats?.weekly_trend.slice(-7).map(([day, planned, actual], idx) => (
-              <WeeklyTrendBar key={idx} day={day} planned={planned} actual={actual} />
-            ))}
-            {(!stats || stats.weekly_trend.length === 0) && (
-              <p className="text-gray-400 text-center py-4">No data available</p>
-            )}
-          </div>
+          {stats && stats.weekly_trend.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={stats.weekly_trend.slice(-7).map(([day, planned, actual]) => ({
+                    day: day,
+                    planned: planned,
+                    actual: actual,
+                  }))}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorPlanned" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="day" tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                  <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                    labelStyle={{ color: '#fff' }}
+                    formatter={(value: number, name: string) => [
+                      `${value.toFixed(1)}h`,
+                      name === 'planned' ? 'Planned' : 'Actual'
+                    ]}
+                  />
+                  <Legend
+                    formatter={(value) => <span className="text-gray-300">{value === 'planned' ? 'Planned Hours' : 'Actual Hours'}</span>}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="planned"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorPlanned)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="actual"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorActual)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">No trend data available</p>
+          )}
         </div>
 
         {/* Recent Alerts */}
@@ -328,38 +508,6 @@ function ProjectProgressItem({ project }: { project: ProjectProgress }) {
         <div className="flex justify-between text-xs mt-1 text-gray-500">
           <span>{project.actual_hours}h logged</span>
           <span>{project.planned_hours}h planned</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function WeeklyTrendBar({ day, planned, actual }: { day: string; planned: number; actual: number }) {
-  const maxHours = Math.max(planned, actual, 1);
-  const plannedWidth = (planned / maxHours) * 100;
-  const actualWidth = (actual / maxHours) * 100;
-
-  return (
-    <div className="flex items-center space-x-3">
-      <div className="w-12 text-xs text-gray-400">{day}</div>
-      <div className="flex-1 space-y-1">
-        <div className="flex items-center space-x-2">
-          <div className="h-2 bg-blue-900/50 rounded-full flex-1 relative">
-            <div
-              className="h-2 bg-blue-500 rounded-full"
-              style={{ width: `${plannedWidth}%` }}
-            />
-          </div>
-          <span className="text-xs text-blue-400 w-10 text-right">{planned.toFixed(0)}h</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="h-2 bg-green-900/50 rounded-full flex-1 relative">
-            <div
-              className="h-2 bg-green-500 rounded-full"
-              style={{ width: `${actualWidth}%` }}
-            />
-          </div>
-          <span className="text-xs text-green-400 w-10 text-right">{actual.toFixed(0)}h</span>
         </div>
       </div>
     </div>

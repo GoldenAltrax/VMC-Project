@@ -7,6 +7,8 @@ pub mod schedules;
 pub mod maintenance;
 pub mod alerts;
 pub mod dashboard;
+pub mod integrity;
+pub mod audit;
 
 pub use auth::*;
 pub use users::*;
@@ -17,3 +19,5 @@ pub use schedules::*;
 pub use maintenance::*;
 pub use alerts::*;
 pub use dashboard::*;
+pub use integrity::*;
+pub use audit::*;

@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { User, Lock, Users, Building2, Info, Plus, Edit, Trash2, X, Loader2, AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Users, Building2, Info, Plus, Edit, Trash2, X, Loader2, AlertCircle, Check, Eye, EyeOff, History } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useClients } from '../hooks/useClients';
+import { AuditLog } from './AuditLog';
 import type { User as UserType, CreateUserInput, Client, CreateClientInput, UpdateClientInput } from '../types';
 
-type SettingsTab = 'profile' | 'users' | 'clients' | 'about';
+type SettingsTab = 'profile' | 'users' | 'clients' | 'audit' | 'about';
 
 export function Settings() {
-  const { user, isAdmin, token } = useAuth();
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
   const tabs = [
     { id: 'profile' as const, label: 'Profile', icon: User },
     ...(isAdmin ? [{ id: 'users' as const, label: 'Users', icon: Users }] : []),
     { id: 'clients' as const, label: 'Clients', icon: Building2 },
+    ...(isAdmin ? [{ id: 'audit' as const, label: 'Audit Log', icon: History }] : []),
     { id: 'about' as const, label: 'About', icon: Info },
   ];
 
@@ -48,6 +50,7 @@ export function Settings() {
         {activeTab === 'profile' && <ProfileSettings />}
         {activeTab === 'users' && isAdmin && <UserManagement />}
         {activeTab === 'clients' && <ClientManagement />}
+        {activeTab === 'audit' && isAdmin && <AuditLog />}
         {activeTab === 'about' && <AboutSection />}
       </div>
     </div>
@@ -233,11 +236,7 @@ function UserManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [token]);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
@@ -248,26 +247,22 @@ function UserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const handleCreateUser = async (input: CreateUserInput) => {
-    try {
-      await invoke('create_user', { token, input });
-      await fetchUsers();
-      setShowCreateModal(false);
-    } catch (err) {
-      throw err;
-    }
+    await invoke('create_user', { token, input });
+    await fetchUsers();
+    setShowCreateModal(false);
   };
 
   const handleUpdateUser = async (id: number, input: { email?: string; full_name?: string; role?: string; is_active?: boolean }) => {
-    try {
-      await invoke('update_user', { token, id, input });
-      await fetchUsers();
-      setEditingUser(null);
-    } catch (err) {
-      throw err;
-    }
+    await invoke('update_user', { token, id, input });
+    await fetchUsers();
+    setEditingUser(null);
   };
 
   const handleDeleteUser = async (id: number) => {
@@ -421,7 +416,7 @@ function UserManagement() {
 interface UserFormModalProps {
   title: string;
   user?: UserType;
-  onSave: (input: any) => Promise<void>;
+  onSave: (input: CreateUserInput | { email?: string; full_name?: string; role?: string; is_active?: boolean }) => Promise<void>;
   onClose: () => void;
 }
 

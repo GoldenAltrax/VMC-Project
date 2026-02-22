@@ -108,6 +108,15 @@ pub fn run() {
             commands::get_dashboard_stats,
             commands::get_machine_utilization,
             commands::get_project_progress,
+            // Integrity commands (delete impact checking)
+            commands::check_machine_delete_impact,
+            commands::check_project_delete_impact,
+            commands::check_client_delete_impact,
+            commands::check_user_delete_impact,
+            // Audit commands
+            commands::get_audit_logs,
+            commands::get_audit_stats,
+            commands::get_audit_filter_options,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

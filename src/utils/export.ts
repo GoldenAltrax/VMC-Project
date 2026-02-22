@@ -1,7 +1,10 @@
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { WeeklyScheduleResponse, MachineWeekSchedule, ProjectWithDetails, Machine } from '../types';
+import type { WeeklyScheduleResponse, ProjectWithDetails, Machine } from '../types';
+
+type ExcelCell = string | number | null | undefined;
+type ExcelRow = ExcelCell[];
 
 // Excel Export Functions
 
@@ -9,7 +12,7 @@ export function exportWeeklyScheduleToExcel(schedule: WeeklyScheduleResponse): v
   const wb = XLSX.utils.book_new();
 
   // Create main schedule sheet
-  const scheduleData: any[][] = [];
+  const scheduleData: ExcelRow[] = [];
 
   // Header row
   const header = ['Machine'];
@@ -22,7 +25,7 @@ export function exportWeeklyScheduleToExcel(schedule: WeeklyScheduleResponse): v
 
   // Data rows
   schedule.machines.forEach(machine => {
-    const row: any[] = [machine.machine_name];
+    const row: ExcelRow = [machine.machine_name];
     machine.days.forEach(day => {
       const entries = day.entries.map(e =>
         `${e.load_name || e.project_name || 'Untitled'} (${e.planned_hours}h/${e.actual_hours ?? '-'}h)`
@@ -69,7 +72,7 @@ export function exportWeeklyScheduleToExcel(schedule: WeeklyScheduleResponse): v
 export function exportProjectsToExcel(projects: ProjectWithDetails[]): void {
   const wb = XLSX.utils.book_new();
 
-  const data: any[][] = [
+  const data: ExcelRow[] = [
     ['Project Name', 'Client', 'Status', 'Start Date', 'End Date', 'Planned Hours', 'Actual Hours', 'Progress %'],
   ];
 
@@ -105,7 +108,7 @@ export function exportProjectsToExcel(projects: ProjectWithDetails[]): void {
 export function exportMachinesToExcel(machines: Machine[]): void {
   const wb = XLSX.utils.book_new();
 
-  const data: any[][] = [
+  const data: ExcelRow[] = [
     ['Name', 'Model', 'Status', 'Location', 'Capacity', 'Serial Number'],
   ];
 

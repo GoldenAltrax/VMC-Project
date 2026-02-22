@@ -89,7 +89,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
           </div>
 
           <p className="text-xs text-gray-500 text-center mt-6">
-            2025 VMC Planner System
+            {new Date().getFullYear()} VMC Planner System
           </p>
         </div>
       </div>

@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, Edit, Plus, Trash2, Users, AlertCircle, Loader2, X, FileSpreadsheet, FileText } from 'lucide-react';
 import { useProjects } from '../hooks/useProjects';
 import { useMachines } from '../hooks/useMachines';
 import { useClients } from '../hooks/useClients';
 import { useAuth } from '../context/AuthContext';
 import { exportProjectsToExcel, exportProjectsToPDF } from '../utils/export';
+import { useTableState } from '../hooks/useTableState';
+import { TableFilters, FilterConfig } from './common/TableFilters';
+import { SortableHeader, TableHeader } from './common/SortableHeader';
+import { Pagination } from './common/Pagination';
+import { DeleteConfirmModal, CascadeEffect } from './common/DeleteConfirmModal';
+import { invoke } from '@tauri-apps/api/core';
 import type { ProjectWithDetails, CreateProjectInput, UpdateProjectInput, Machine, Client, ProjectStatus } from '../types';
 
 export function Projects() {
@@ -15,7 +21,7 @@ export function Projects() {
 
   const [selectedProject, setSelectedProject] = useState<ProjectWithDetails | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [deleteModal, setDeleteModal] = useState<{ project: ProjectWithDetails; cascadeEffects: CascadeEffect[] } | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -58,17 +64,31 @@ export function Projects() {
     }
   };
 
-  const handleDeleteProject = async (id: number) => {
+  const showDeleteModal = async (project: ProjectWithDetails) => {
     try {
-      await deleteProject(id);
-      if (selectedProject?.id === id) {
+      const token = localStorage.getItem('vmc_auth_token') || '';
+      const impact = await invoke<{ cascade_effects: CascadeEffect[] }>('check_project_delete_impact', {
+        token,
+        projectId: project.id
+      });
+      setDeleteModal({ project, cascadeEffects: impact.cascade_effects });
+    } catch {
+      setDeleteModal({ project, cascadeEffects: [] });
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!deleteModal) return;
+    try {
+      await deleteProject(deleteModal.project.id);
+      if (selectedProject?.id === deleteModal.project.id) {
         setSelectedProject(null);
         setIsEditing(false);
       }
     } catch (err) {
       // Error is handled in the hook
     }
-    setDeleteConfirm(null);
+    setDeleteModal(null);
   };
 
   const handleCreateProject = () => {
@@ -173,128 +193,32 @@ export function Projects() {
           machines={machines}
           onBack={() => setSelectedProject(null)}
           onEdit={() => setIsEditing(true)}
-          onDelete={() => setDeleteConfirm(selectedProject.id)}
+          onDelete={() => showDeleteModal(selectedProject)}
           canEdit={canEdit}
           isAdmin={isAdmin}
         />
       ) : (
-        <div className="bg-gray-800 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-700">
-                  <th className="text-left p-4">Project Name</th>
-                  <th className="text-left p-4">Client</th>
-                  <th className="text-left p-4">Status</th>
-                  <th className="text-left p-4">Timeline</th>
-                  <th className="text-left p-4">Hours (Plan/Actual)</th>
-                  <th className="text-left p-4">Progress</th>
-                  {canEdit && <th className="text-left p-4">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {projects.length === 0 ? (
-                  <tr>
-                    <td colSpan={canEdit ? 7 : 6} className="p-8 text-center text-gray-400">
-                      No projects found. {canEdit && 'Click "New Project" to create one.'}
-                    </td>
-                  </tr>
-                ) : (
-                  projects.map(project => (
-                    <tr key={project.id} className="border-t border-gray-700 hover:bg-gray-700/50">
-                      <td className="p-4">
-                        <button
-                          className="text-blue-400 hover:text-blue-300 font-medium"
-                          onClick={() => setSelectedProject(project)}
-                        >
-                          {project.name}
-                        </button>
-                      </td>
-                      <td className="p-4">{project.client_name || '-'}</td>
-                      <td className="p-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
-                          {formatStatus(project.status)}
-                        </span>
-                      </td>
-                      <td className="p-4 text-sm">
-                        {project.start_date || project.end_date ? (
-                          <div className="flex items-center">
-                            <Calendar size={14} className="mr-1 text-gray-400" />
-                            {formatDate(project.start_date)} - {formatDate(project.end_date)}
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">Not set</span>
-                        )}
-                      </td>
-                      <td className="p-4">
-                        {project.planned_hours} / {project.actual_hours}
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center space-x-2">
-                          <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-blue-500 rounded-full transition-all"
-                              style={{ width: `${Math.min(100, project.progress_percentage)}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-400">{project.progress_percentage}%</span>
-                        </div>
-                      </td>
-                      {canEdit && (
-                        <td className="p-4">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleEditProject(project)}
-                              className="p-1 text-gray-400 hover:text-blue-400"
-                              title="Edit project"
-                            >
-                              <Edit size={16} />
-                            </button>
-                            {isAdmin && (
-                              <button
-                                onClick={() => setDeleteConfirm(project.id)}
-                                className="p-1 text-gray-400 hover:text-red-400"
-                                title="Delete project"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ProjectTable
+          projects={projects}
+          onView={setSelectedProject}
+          onEdit={handleEditProject}
+          onDelete={showDeleteModal}
+          canEdit={canEdit}
+          isAdmin={isAdmin}
+        />
       )}
 
       {/* Delete confirmation modal */}
-      {deleteConfirm !== null && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
-            <p className="text-gray-400 mb-6">
-              Are you sure you want to delete this project? This action cannot be undone.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteProject(deleteConfirm)}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+      {deleteModal && (
+        <DeleteConfirmModal
+          isOpen={true}
+          onClose={() => setDeleteModal(null)}
+          onConfirm={handleDeleteProject}
+          itemType="Project"
+          itemName={deleteModal.project.name}
+          cascadeEffects={deleteModal.cascadeEffects}
+          loading={saving}
+        />
       )}
     </div>
   );
@@ -322,6 +246,226 @@ function getStatusColor(status: string): string {
     default:
       return 'bg-gray-500/20 text-gray-500';
   }
+}
+
+// ============================================
+// Project Table Component with Filters/Sort/Pagination
+// ============================================
+
+interface ProjectTableProps {
+  projects: ProjectWithDetails[];
+  onView: (project: ProjectWithDetails) => void;
+  onEdit: (project: ProjectWithDetails) => void;
+  onDelete: (project: ProjectWithDetails) => void;
+  canEdit: boolean;
+  isAdmin: boolean;
+}
+
+function ProjectTable({ projects, onView, onEdit, onDelete, canEdit, isAdmin }: ProjectTableProps) {
+  // Extract unique values for filter options
+  const filterOptions = useMemo(() => {
+    const statuses = [...new Set(projects.map(p => p.status))];
+    const clientNames = [...new Set(projects.map(p => p.client_name).filter(Boolean))];
+
+    return {
+      statuses: statuses.map(s => ({ value: s, label: formatStatus(s) })),
+      clients: clientNames.map(c => ({ value: c as string, label: c as string })),
+    };
+  }, [projects]);
+
+  // Filter configuration
+  const filterConfig: FilterConfig[] = useMemo(() => [
+    {
+      key: 'status',
+      label: 'Status',
+      type: 'select',
+      options: filterOptions.statuses,
+      placeholder: 'All Statuses',
+    },
+    {
+      key: 'client_name',
+      label: 'Client',
+      type: 'select',
+      options: filterOptions.clients,
+      placeholder: 'All Clients',
+    },
+    {
+      key: 'start_date',
+      label: 'Start Date',
+      type: 'dateRange',
+    },
+  ], [filterOptions]);
+
+  // Use table state hook for filtering, sorting, and pagination
+  const {
+    paginatedItems,
+    sort,
+    setSort,
+    filters,
+    setFilter,
+    clearFilters,
+    search,
+    setSearch,
+    currentPage,
+    pageSize,
+    totalItems,
+    setPage,
+    setPageSize,
+  } = useTableState(projects, {
+    storageKey: 'projects',
+    defaultPageSize: 25,
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Filter Bar */}
+      <TableFilters
+        filters={filterConfig}
+        values={filters}
+        onChange={setFilter}
+        onClear={clearFilters}
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search projects..."
+      />
+
+      {/* Table */}
+      <div className="bg-gray-800 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-700">
+                <SortableHeader
+                  label="Project Name"
+                  sortKey="name"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Client"
+                  sortKey="client_name"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Status"
+                  sortKey="status"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Start Date"
+                  sortKey="start_date"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Progress"
+                  sortKey="progress_percentage"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                <SortableHeader
+                  label="Hours"
+                  sortKey="planned_hours"
+                  currentSort={sort}
+                  onSort={setSort}
+                />
+                {canEdit && <TableHeader label="Actions" />}
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedItems.length === 0 ? (
+                <tr>
+                  <td colSpan={canEdit ? 7 : 6} className="p-8 text-center text-gray-400">
+                    {projects.length === 0
+                      ? `No projects found. ${canEdit ? 'Click "New Project" to create one.' : ''}`
+                      : 'No projects match your filters'}
+                  </td>
+                </tr>
+              ) : (
+                paginatedItems.map(project => (
+                  <tr key={project.id} className="border-t border-gray-700 hover:bg-gray-700/50">
+                    <td className="p-4">
+                      <button
+                        className="text-blue-400 hover:text-blue-300 font-medium"
+                        onClick={() => onView(project)}
+                      >
+                        {project.name}
+                      </button>
+                    </td>
+                    <td className="p-4">{project.client_name || '-'}</td>
+                    <td className="p-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(project.status)}`}>
+                        {formatStatus(project.status)}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm">
+                      {project.start_date || project.end_date ? (
+                        <div className="flex items-center">
+                          <Calendar size={14} className="mr-1 text-gray-400" />
+                          {formatDate(project.start_date)} - {formatDate(project.end_date)}
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">Not set</span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(100, project.progress_percentage)}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-400">{project.progress_percentage}%</span>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm">
+                      {project.planned_hours} / {project.actual_hours}
+                    </td>
+                    {canEdit && (
+                      <td className="p-4">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => onEdit(project)}
+                            className="p-1 text-gray-400 hover:text-blue-400"
+                            title="Edit project"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => onDelete(project)}
+                              className="p-1 text-gray-400 hover:text-red-400"
+                              title="Delete project"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Pagination */}
+      {totalItems > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      )}
+    </div>
+  );
 }
 
 interface ProjectDetailsProps {

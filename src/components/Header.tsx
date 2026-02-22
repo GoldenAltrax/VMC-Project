@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Bell, Search, User, LogOut, ChevronDown, X, Check, AlertCircle, Info, AlertTriangle, Clock, Factory, FolderKanban, Calendar } from 'lucide-react';
+import { Bell, Search, User, LogOut, ChevronDown, X, Check, AlertCircle, Info, AlertTriangle, Factory, FolderKanban } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAlerts } from '../hooks/useAlerts';
 import { useMachines } from '../hooks/useMachines';
 import { useProjects } from '../hooks/useProjects';
-import type { AlertWithDetails, Machine, ProjectWithDetails } from '../types';
+import type { AlertWithDetails } from '../types';
 
 interface HeaderProps {
   activeTab: string;
@@ -255,7 +255,7 @@ export function Header({ activeTab, setActiveTab }: HeaderProps) {
           {/* Search Results Dropdown */}
           {showSearchResults && searchResults.length > 0 && (
             <div className="absolute top-full mt-2 w-full bg-gray-700 rounded-lg shadow-lg border border-gray-600 py-2 z-50 max-h-96 overflow-y-auto">
-              {searchResults.map((result, index) => (
+              {searchResults.map((result) => (
                 <button
                   key={`${result.type}-${result.id}`}
                   onClick={() => handleSearchResultClick(result)}

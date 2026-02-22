@@ -171,30 +171,30 @@ fn seed_projects(conn: &Connection) -> Result<()> {
         (
             "Aerospace Components Batch A",
             1, // AeroTech Industries
-            "Manufacturing of precision turbine blade components for commercial aircraft engines.",
+            "Manufacturing of precision turbine blade components for commercial aircraft engines. Includes 48 turbine blades with tight tolerances.",
             (today - Duration::days(14)).to_string(),
             (today + Duration::days(45)).to_string(),
             "active",
             240.0,
-            85.0,
+            156.0, // 65% complete
             1, // admin
         ),
         (
             "EV Transmission Parts",
             2, // Global Motors
-            "Production of high-precision transmission gears for next-gen electric vehicles.",
+            "Production of high-precision transmission gears for next-gen electric vehicles. Order includes 200 gear sets.",
             (today - Duration::days(7)).to_string(),
             (today + Duration::days(60)).to_string(),
             "active",
             320.0,
-            45.0,
+            89.0, // ~28% complete
             1,
         ),
         (
             "Surgical Instruments Set",
             3, // HealthTech Solutions
-            "Precision machining of surgical tool components meeting medical grade standards.",
-            (today + Duration::days(14)).to_string(),
+            "Precision machining of surgical tool components meeting FDA medical grade standards. Batch of 500 units.",
+            (today + Duration::days(7)).to_string(),
             (today + Duration::days(90)).to_string(),
             "planning",
             400.0,
@@ -204,12 +204,23 @@ fn seed_projects(conn: &Connection) -> Result<()> {
         (
             "Industrial Pump Components",
             4, // Heavy Industries Co.
-            "Manufacturing of heavy-duty pump housings and impellers.",
+            "Manufacturing of heavy-duty pump housings and impellers for industrial applications.",
             (today - Duration::days(30)).to_string(),
             (today - Duration::days(5)).to_string(),
             "completed",
             180.0,
-            185.0,
+            178.0, // Completed efficiently
+            1,
+        ),
+        (
+            "Defense Contract D-2024",
+            1, // AeroTech Industries (also does defense)
+            "Classified precision components for defense applications. High-security clearance required.",
+            (today - Duration::days(3)).to_string(),
+            (today + Duration::days(120)).to_string(),
+            "active",
+            500.0,
+            24.0, // Just started
             1,
         ),
     ];
@@ -233,6 +244,8 @@ fn seed_project_machines(conn: &Connection) -> Result<()> {
         (3, 6), // Surgical -> F16 (high precision)
         (4, 4), // Industrial Pump -> CHEVALIER NH
         (4, 5), // Industrial Pump -> USW 2518
+        (5, 7), // Defense -> DMC 103V (5-axis for complex parts)
+        (5, 1), // Defense -> TAKUMI H12E
     ];
 
     for (project_id, machine_id) in assignments {
@@ -252,6 +265,9 @@ fn seed_project_team(conn: &Connection) -> Result<()> {
         (2, 4, "member"),     // EV -> operator3
         (3, 3, "lead"),       // Surgical -> operator2 as lead
         (4, 4, "lead"),       // Industrial -> operator3 as lead
+        (5, 2, "lead"),       // Defense -> operator1 as lead (senior)
+        (5, 3, "member"),     // Defense -> operator2
+        (5, 4, "member"),     // Defense -> operator3
     ];
 
     for (project_id, user_id, role) in team {
@@ -269,41 +285,81 @@ fn seed_schedules(conn: &Connection) -> Result<()> {
     let days_from_monday = today.weekday().num_days_from_monday() as i64;
     let monday = today - Duration::days(days_from_monday);
 
-    // Sample schedule entries using load names from user's data
-    let schedules = vec![
-        // TAKUMI H12E (machine_id: 1)
-        (1, Some(1), monday.to_string(), "08:00", "20:00", Some(2), "HW BOT INS", 12.0, Some(11.5), "Aerospace batch"),
-        (1, Some(1), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(2), "HW BOT INS", 12.0, Some(12.0), "Aerospace batch"),
-        (1, Some(1), (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(3), "KWPA BUNK", 12.0, None, "Aerospace batch"),
-
-        // MAKINO PS65 (machine_id: 2)
-        (2, Some(2), monday.to_string(), "08:00", "20:00", Some(2), "FMD 33G ELE", 12.0, Some(12.0), "EV transmission"),
-        (2, Some(2), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(2), "FMD KWPA ELE", 12.0, Some(12.0), "EV transmission"),
-        (2, Some(2), (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(4), "KOPA 3C SP. BUSH", 12.0, None, "EV transmission"),
-
-        // TAKUMI V12 (machine_id: 3)
-        (3, Some(1), monday.to_string(), "08:00", "20:00", Some(3), "XF331 FD", 12.0, Some(11.0), "Precision parts"),
-        (3, Some(1), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(3), "XF331 FD", 12.0, Some(12.0), "Precision parts"),
-        (3, None, (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(3), "33G FD BK SET", 12.0, None, "Custom order"),
-
-        // CHEVALIER NH (machine_id: 4)
-        (4, None, monday.to_string(), "08:00", "20:00", Some(4), "NH BRACKETS", 12.0, Some(10.5), "Bracket set"),
-        (4, None, (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(4), "NH PLATES", 12.0, None, "Plate work"),
-
-        // F16 (machine_id: 6)
-        (6, Some(3), (monday + Duration::days(3)).to_string(), "08:00", "20:00", Some(3), "FMD 33G MD", 12.0, None, "Setup for surgical"),
-        (6, Some(3), (monday + Duration::days(4)).to_string(), "08:00", "20:00", Some(3), "CC J1 MD", 12.0, None, "Surgical instruments"),
-
-        // DMC 103V (machine_id: 7)
-        (7, Some(2), monday.to_string(), "08:00", "20:00", Some(4), "XF331 BUNK", 24.0, Some(22.0), "Complex 5-axis work"),
-        (7, Some(2), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(4), "XF331 BUNK", 24.0, None, "Complex 5-axis work"),
+    // Historical data for past 4 weeks (for impressive trend charts)
+    let historical_weeks: Vec<(i64, Vec<(f64, f64)>)> = vec![
+        // Week -4: (machine_id relative offset, planned, actual) - lower utilization
+        (-28, vec![(48.0, 42.0), (36.0, 35.0), (24.0, 22.0), (12.0, 11.0)]),
+        // Week -3: improving
+        (-21, vec![(60.0, 55.0), (48.0, 46.0), (36.0, 34.0), (24.0, 22.0)]),
+        // Week -2: good week
+        (-14, vec![(72.0, 68.0), (60.0, 58.0), (48.0, 45.0), (36.0, 35.0)]),
+        // Week -1: excellent week
+        (-7, vec![(84.0, 82.0), (72.0, 70.0), (60.0, 58.0), (48.0, 47.0)]),
     ];
 
-    for (machine_id, project_id, date, start, end, operator_id, load, planned, actual, notes) in schedules {
+    // Insert historical weekly summaries (simplified - one entry per machine per week)
+    for (week_offset, machines_data) in &historical_weeks {
+        let week_monday = monday + Duration::days(*week_offset);
+        for (idx, (planned, actual)) in machines_data.iter().enumerate() {
+            let machine_id = (idx + 1) as i64; // machines 1-4
+            for day in 0..5 { // Mon-Fri
+                let day_date = week_monday + Duration::days(day);
+                let daily_planned = planned / 5.0;
+                let daily_actual = actual / 5.0;
+                conn.execute(
+                    "INSERT INTO schedules (machine_id, project_id, date, start_time, end_time, operator_id, load_name, planned_hours, actual_hours, notes, status)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'completed')",
+                    params![machine_id, Some(1), day_date.to_string(), "08:00", "20:00", Some(2), "Historical Job", daily_planned, Some(daily_actual), "Historical data"],
+                )?;
+            }
+        }
+    }
+
+    // Current week schedule entries using load names from user's data
+    let schedules = vec![
+        // TAKUMI H12E (machine_id: 1)
+        (1, Some(1), monday.to_string(), "08:00", "20:00", Some(2), "HW BOT INS", 12.0, Some(11.5), "Aerospace batch", "completed"),
+        (1, Some(1), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(2), "HW BOT INS", 12.0, Some(12.0), "Aerospace batch", "completed"),
+        (1, Some(1), (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(3), "KWPA BUNK", 12.0, Some(11.0), "Aerospace batch", "in-progress"),
+        (1, Some(1), (monday + Duration::days(3)).to_string(), "08:00", "20:00", Some(2), "KWPA BUNK", 12.0, None, "Aerospace batch", "scheduled"),
+        (1, Some(1), (monday + Duration::days(4)).to_string(), "08:00", "20:00", Some(2), "HW TOP INS", 12.0, None, "Aerospace batch", "scheduled"),
+
+        // MAKINO PS65 (machine_id: 2)
+        (2, Some(2), monday.to_string(), "08:00", "20:00", Some(2), "FMD 33G ELE", 12.0, Some(12.0), "EV transmission", "completed"),
+        (2, Some(2), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(2), "FMD KWPA ELE", 12.0, Some(12.0), "EV transmission", "completed"),
+        (2, Some(2), (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(4), "KOPA 3C SP. BUSH", 12.0, Some(11.5), "EV transmission", "in-progress"),
+        (2, Some(2), (monday + Duration::days(3)).to_string(), "08:00", "20:00", Some(4), "KOPA 3C SP. BUSH", 12.0, None, "EV transmission", "scheduled"),
+        (2, Some(2), (monday + Duration::days(4)).to_string(), "08:00", "20:00", Some(2), "33G FD SET", 12.0, None, "EV transmission", "scheduled"),
+
+        // TAKUMI V12 (machine_id: 3)
+        (3, Some(1), monday.to_string(), "08:00", "20:00", Some(3), "XF331 FD", 12.0, Some(11.0), "Precision parts", "completed"),
+        (3, Some(1), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(3), "XF331 FD", 12.0, Some(12.0), "Precision parts", "completed"),
+        (3, None, (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(3), "33G FD BK SET", 12.0, None, "Custom order", "scheduled"),
+        (3, Some(1), (monday + Duration::days(3)).to_string(), "08:00", "20:00", Some(3), "XF331 BUNK", 12.0, None, "Aerospace precision", "scheduled"),
+
+        // CHEVALIER NH (machine_id: 4)
+        (4, None, monday.to_string(), "08:00", "20:00", Some(4), "NH BRACKETS", 12.0, Some(10.5), "Bracket set", "completed"),
+        (4, None, (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(4), "NH PLATES", 12.0, Some(11.0), "Plate work", "completed"),
+        (4, Some(4), (monday + Duration::days(2)).to_string(), "08:00", "16:00", Some(4), "PUMP HOUSING", 8.0, None, "Industrial pump", "scheduled"),
+
+        // F16 (machine_id: 6)
+        (6, Some(3), (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(3), "FMD 33G MD", 12.0, None, "Setup for surgical", "scheduled"),
+        (6, Some(3), (monday + Duration::days(3)).to_string(), "08:00", "20:00", Some(3), "CC J1 MD", 12.0, None, "Surgical instruments", "scheduled"),
+        (6, Some(3), (monday + Duration::days(4)).to_string(), "08:00", "20:00", Some(3), "CC J1 MD", 12.0, None, "Surgical instruments", "scheduled"),
+
+        // DMC 103V (machine_id: 7)
+        (7, Some(2), monday.to_string(), "08:00", "20:00", Some(4), "XF331 BUNK", 12.0, Some(11.5), "Complex 5-axis work", "completed"),
+        (7, Some(2), (monday + Duration::days(1)).to_string(), "08:00", "20:00", Some(4), "XF331 BUNK", 12.0, Some(12.0), "Complex 5-axis work", "completed"),
+        (7, Some(2), (monday + Duration::days(2)).to_string(), "08:00", "20:00", Some(2), "5-AXIS CUSTOM", 12.0, None, "5-axis precision", "in-progress"),
+        (7, Some(2), (monday + Duration::days(3)).to_string(), "08:00", "20:00", Some(4), "5-AXIS CUSTOM", 12.0, None, "5-axis precision", "scheduled"),
+        (7, Some(2), (monday + Duration::days(4)).to_string(), "08:00", "20:00", Some(4), "EV GEAR FINAL", 12.0, None, "Final EV assembly", "scheduled"),
+    ];
+
+    for (machine_id, project_id, date, start, end, operator_id, load, planned, actual, notes, status) in schedules {
         conn.execute(
             "INSERT INTO schedules (machine_id, project_id, date, start_time, end_time, operator_id, load_name, planned_hours, actual_hours, notes, status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'scheduled')",
-            params![machine_id, project_id, date, start, end, operator_id, load, planned, actual, notes],
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![machine_id, project_id, date, start, end, operator_id, load, planned, actual, notes, status],
         )?;
     }
     Ok(())
@@ -332,11 +388,21 @@ fn seed_maintenance(conn: &Connection) -> Result<()> {
 
 fn seed_alerts(conn: &Connection) -> Result<()> {
     let alerts = vec![
-        ("maintenance", "high", "Maintenance In Progress", "USW 2518 is under maintenance - wire guide replacement in progress", Some(5), None::<i64>),
-        ("info", "low", "Machine Idle", "CHEVALIER NH has been idle for extended period - consider scheduling work", Some(4), None),
-        ("maintenance", "medium", "Maintenance Due Soon", "TAKUMI H12E scheduled maintenance due in 30 days", Some(1), None),
-        ("info", "low", "System Notification", "Weekly backup completed successfully", None, None),
-        ("schedule", "medium", "Schedule Reminder", "Upcoming high-priority jobs need attention this week", None, Some(1)),
+        // Critical & High priority - attention grabbing
+        ("maintenance", "high", "Maintenance In Progress", "USW 2518 is under maintenance - wire guide replacement in progress. Expected completion: today.", Some(5), None::<i64>),
+        ("schedule", "high", "High-Priority Job Due", "Aerospace Components Batch A - critical deadline approaching in 3 days", Some(1), Some(1)),
+
+        // Medium priority - operational
+        ("maintenance", "medium", "Maintenance Due Soon", "TAKUMI H12E scheduled maintenance due in 30 days - preventive oil change", Some(1), None),
+        ("schedule", "medium", "Schedule Reminder", "EV Transmission Parts project requires 5-axis machine allocation this week", None, Some(2)),
+        ("info", "medium", "Utilization Alert", "Weekly machine utilization at 87% - exceeding target of 80%", None, None),
+
+        // Low priority - informational
+        ("info", "low", "Machine Status Update", "CHEVALIER NH returned to idle status after completing bracket set", Some(4), None),
+        ("info", "low", "Project Milestone", "Industrial Pump Components project completed ahead of schedule", None, Some(4)),
+        ("info", "low", "System Notification", "Weekly database backup completed successfully", None, None),
+        ("schedule", "low", "New Schedule Added", "F16 scheduled for surgical instruments production starting Thursday", Some(6), Some(3)),
+        ("info", "low", "Performance Update", "DMC 103V achieved 95% efficiency this week - top performer", Some(7), None),
     ];
 
     for (alert_type, priority, title, message, machine_id, project_id) in alerts {

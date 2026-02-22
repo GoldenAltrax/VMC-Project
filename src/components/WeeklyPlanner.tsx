@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Loader2, AlertCircle, Clock, Copy, Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Loader2, AlertCircle, Clock, Copy, FileSpreadsheet, FileText } from 'lucide-react';
 import { useSchedules, addWeeks } from '../hooks/useSchedules';
 import { useProjects } from '../hooks/useProjects';
 import { useAuth } from '../context/AuthContext';
 import { exportWeeklyScheduleToExcel, exportWeeklyScheduleToPDF } from '../utils/export';
-import type { ScheduleEntry, CreateScheduleInput, UpdateScheduleInput, ProjectWithDetails, MachineWeekSchedule, DaySchedule } from '../types';
+import type { ScheduleEntry, CreateScheduleInput, UpdateScheduleInput, ProjectWithDetails, MachineWeekSchedule, DaySchedule, ScheduleStatus } from '../types';
 
 export function WeeklyPlanner() {
   const {
@@ -530,7 +530,7 @@ function EntryModal({ machineId, date, entry, projects, onSave, onLogHours, onCl
         start_time: formData.start_time || undefined,
         end_time: formData.end_time || undefined,
         notes: formData.notes || undefined,
-        status: formData.status as any,
+        status: formData.status as ScheduleStatus,
       };
       await onSave(input);
     } finally {
