@@ -24,7 +24,7 @@
         "center": true,
         "transparent": true,
         "visible": true,
-        "url": "../src-tauri/splashscreen.html"
+        "url": "splashscreen.html"
       },
       {
         "label": "main",
