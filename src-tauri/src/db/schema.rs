@@ -166,6 +166,54 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_machines_status ON machines(status);
         CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
         CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+        -- Downtime log for machine availability tracking
+        CREATE TABLE IF NOT EXISTS downtime_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id INTEGER NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
+            start_time TEXT NOT NULL,
+            end_time TEXT,
+            reason_category TEXT NOT NULL CHECK (reason_category IN ('maintenance', 'breakdown', 'setup', 'idle', 'other')),
+            description TEXT,
+            created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Pre-shift checklist templates per machine
+        CREATE TABLE IF NOT EXISTS checklist_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id INTEGER REFERENCES machines(id) ON DELETE CASCADE,
+            checklist_item TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Pre-shift checklist completions
+        CREATE TABLE IF NOT EXISTS checklist_completions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id INTEGER NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
+            template_id INTEGER NOT NULL REFERENCES checklist_templates(id) ON DELETE CASCADE,
+            checked_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            check_date TEXT NOT NULL,
+            is_completed INTEGER DEFAULT 0,
+            notes TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Shift handover logs
+        CREATE TABLE IF NOT EXISTS shift_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            machine_id INTEGER REFERENCES machines(id) ON DELETE CASCADE,
+            shift_date TEXT NOT NULL,
+            outgoing_operator_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            notes TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_downtime_machine ON downtime_log(machine_id);
+        CREATE INDEX IF NOT EXISTS idx_checklist_machine ON checklist_templates(machine_id);
+        CREATE INDEX IF NOT EXISTS idx_checklist_completions_date ON checklist_completions(check_date);
+        CREATE INDEX IF NOT EXISTS idx_shift_logs_date ON shift_logs(shift_date);
         "#,
     )?;
 

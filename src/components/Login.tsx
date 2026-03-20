@@ -79,15 +79,6 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             </button>
           </form>
 
-          <div className="mt-4 p-3 bg-gray-700/50 rounded-lg">
-            <p className="text-xs text-gray-400 text-center mb-2">Default Credentials:</p>
-            <div className="text-xs text-gray-300 space-y-1">
-              <p><span className="text-blue-400">Admin:</span> admin / admin123</p>
-              <p><span className="text-green-400">Operator:</span> operator1 / operator123</p>
-              <p><span className="text-yellow-400">Viewer:</span> viewer1 / viewer123</p>
-            </div>
-          </div>
-
           <p className="text-xs text-gray-500 text-center mt-6">
             {new Date().getFullYear()} VMC Planner System
           </p>

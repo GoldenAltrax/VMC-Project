@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Activity, AlertCircle, CheckCircle2, Clock, Cog, Factory, PauseCircle, Percent, TrendingUp, Wrench, Loader2, X, Users, FolderKanban, BarChart3, RefreshCw } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, Clock, Cog, Factory, PauseCircle, Percent, TrendingUp, Wrench, Loader2, X, Users, FolderKanban, BarChart3, RefreshCw, PackageCheck } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { useDashboard } from '../hooks/useDashboard';
 import { useMachines } from '../hooks/useMachines';
 import { useAlerts } from '../hooks/useAlerts';
+import { useAuth } from '../context/AuthContext';
 import type { Machine, AlertWithDetails, MachineUtilization, ProjectProgress } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, BarChart, Bar } from 'recharts';
 
@@ -25,18 +27,30 @@ export function Dashboard() {
   const { stats, machineUtilization, projectProgress, loading, error, fetchAll, clearError } = useDashboard();
   const { machines, fetchMachines } = useMachines();
   const { alerts, fetchAlerts, markAsRead } = useAlerts();
+  const { token } = useAuth();
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [weeklySchedule, setWeeklySchedule] = useState<any>(null);
+
+  const loadWeeklySchedule = async () => {
+    if (!token) return;
+    try {
+      const { getWeekStart } = await import('../hooks/useSchedules');
+      const ws = await invoke<any>('get_weekly_schedule', { token, weekStart: getWeekStart() });
+      setWeeklySchedule(ws);
+    } catch { /* non-critical */ }
+  };
 
   useEffect(() => {
     fetchAll();
     fetchMachines();
     fetchAlerts();
+    loadWeeklySchedule();
   }, [fetchAll, fetchMachines, fetchAlerts]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchAll(), fetchMachines(), fetchAlerts()]);
+    await Promise.all([fetchAll(), fetchMachines(), fetchAlerts(), loadWeeklySchedule()]);
     setLastUpdated(new Date());
     setIsRefreshing(false);
   };
@@ -128,7 +142,7 @@ export function Dashboard() {
       </div>
 
       {/* Secondary Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <StatCardSmall
           title="Total Clients"
           value={stats?.total_clients || 0}
@@ -147,7 +161,63 @@ export function Dashboard() {
           icon={AlertCircle}
           color={stats && stats.unread_alerts > 0 ? 'red' : 'gray'}
         />
+        {/* On-Time Delivery Rate */}
+        <div className="bg-gray-800 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p className="text-gray-400 text-sm">On-Time Delivery</p>
+            {(() => {
+              const completed = projectProgress.filter(p => p.status === 'completed');
+              if (completed.length === 0) return <p className="text-xl font-bold mt-1 text-gray-500">N/A</p>;
+              const onTime = completed.filter(p => {
+                if (!p.actual_completion_date || !p.end_date) return false;
+                return new Date(p.actual_completion_date) <= new Date(p.end_date);
+              }).length;
+              const rate = Math.round((onTime / completed.length) * 100);
+              return (
+                <p className={`text-xl font-bold mt-1 ${rate >= 80 ? 'text-green-400' : rate >= 60 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {rate}%
+                </p>
+              );
+            })()}
+          </div>
+          <PackageCheck size={24} className="text-green-500" />
+        </div>
       </div>
+
+      {/* OEE Section */}
+      {weeklySchedule && weeklySchedule.machines && weeklySchedule.machines.length > 0 && (
+        <div className="bg-gray-800 rounded-xl p-5">
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Activity size={18} className="text-blue-400" />
+            Machine OEE — This Week
+            <span className="text-xs text-gray-500 font-normal ml-2">(Availability × Performance)</span>
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {weeklySchedule.machines.map((machine: any) => {
+              const availability = machine.weekly_planned_hours > 0
+                ? Math.min((machine.weekly_actual_hours / machine.weekly_planned_hours) * 100, 100)
+                : 0;
+              const oee = Math.round(availability);
+              const color = oee >= 85 ? 'text-green-400' : oee >= 60 ? 'text-yellow-400' : 'text-red-400';
+              const bg = oee >= 85 ? 'bg-green-500' : oee >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+              return (
+                <div key={machine.machine_id} className="bg-gray-700/50 rounded-lg p-3">
+                  <p className="text-xs text-gray-400 truncate mb-2">{machine.machine_name}</p>
+                  <div className="flex items-end justify-between">
+                    <span className={`text-2xl font-bold ${color}`}>{oee}%</span>
+                    <div className="w-2 bg-gray-600 rounded-full h-10 flex flex-col-reverse">
+                      <div className={`${bg} rounded-full w-2`} style={{ height: `${oee}%` }} />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    {machine.weekly_actual_hours.toFixed(1)}h / {machine.weekly_planned_hours.toFixed(1)}h
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Status Distribution Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -170,7 +240,7 @@ export function Dashboard() {
                     outerRadius={90}
                     paddingAngle={3}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => percent > 0 ? `${name} ${(percent * 100).toFixed(0)}%` : ''}
                     labelLine={false}
                   >
                     {stats.machine_status.map(([status], index) => (

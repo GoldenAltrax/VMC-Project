@@ -52,6 +52,12 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Database, String> {
             .map_err(|e| format!("Failed to create tables: {}", e))?;
     }
 
+    // Run column migrations for existing databases
+    {
+        let conn = db.conn.lock();
+        run_migrations(&conn);
+    }
+
     // Seed initial data if database is empty
     {
         let conn = db.conn.lock();
@@ -68,4 +74,24 @@ pub fn initialize_database(app_handle: &AppHandle) -> Result<Database, String> {
     }
 
     Ok(db)
+}
+
+fn run_migrations(conn: &Connection) {
+    // Add new columns to existing tables - errors ignored (column already exists)
+    let migrations = [
+        "ALTER TABLE machines ADD COLUMN hourly_rate REAL DEFAULT 0.0",
+        "ALTER TABLE schedules ADD COLUMN setup_hours REAL DEFAULT 0.0",
+        "ALTER TABLE schedules ADD COLUMN sequence_order INTEGER DEFAULT 0",
+        "ALTER TABLE schedules ADD COLUMN drawing_number TEXT",
+        "ALTER TABLE schedules ADD COLUMN revision TEXT",
+        "ALTER TABLE schedules ADD COLUMN material TEXT",
+        "ALTER TABLE projects ADD COLUMN actual_completion_date TEXT",
+        "ALTER TABLE schedules ADD COLUMN cam_planned_hours REAL",
+        "ALTER TABLE schedules ADD COLUMN cam_actual_hours REAL",
+        "ALTER TABLE schedules ADD COLUMN cam_buffer_percentage REAL",
+        "ALTER TABLE schedules ADD COLUMN job_type TEXT",
+    ];
+    for sql in &migrations {
+        let _ = conn.execute_batch(sql);
+    }
 }

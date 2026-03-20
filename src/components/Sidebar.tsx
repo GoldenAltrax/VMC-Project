@@ -9,6 +9,11 @@ import {
   XCircle,
   Wrench,
   Bell,
+  DollarSign,
+  Monitor,
+  BarChart2,
+  CheckSquare,
+  ArrowRightLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
@@ -19,7 +24,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
-  const { animatedLogout } = useAuth();
+  const { animatedLogout, isOperator, isAdmin } = useAuth();
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const handleConfirmLogout = async () => {
@@ -30,17 +35,22 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "projects", label: "Projects", icon: FolderKanban },
+    ...(isOperator && !isAdmin ? [{ id: "floor", label: "Floor View", icon: Monitor }] : []),
+    ...(!isOperator || isAdmin ? [{ id: "projects", label: "Projects", icon: FolderKanban }] : []),
     { id: "machines", label: "Machines", icon: Factory },
     { id: "maintenance", label: "Maintenance", icon: Wrench },
     { id: "planner", label: "Weekly Planner", icon: Calendar },
+    { id: "checklists", label: "Checklists", icon: CheckSquare },
+    { id: "handover", label: "Shift Handover", icon: ArrowRightLeft },
+    ...(!isOperator || isAdmin ? [{ id: "reports", label: "Reports", icon: BarChart2 }] : []),
     { id: "notifications", label: "Notifications", icon: Bell },
+    ...(isAdmin ? [{ id: "cost", label: "Cost", icon: DollarSign }] : []),
     { id: "settings", label: "Settings", icon: Settings2 },
   ];
 
   return (
     <>
-      <div className="w-64 bg-gray-800 flex flex-col">
+      <div className="w-64 bg-gray-800 flex flex-col h-full min-h-0 overflow-y-auto">
         {/* Header Section */}
         <div className="p-4 border-b border-gray-700">
           <h1 className="text-xl font-bold text-blue-400">VMC Planner</h1>

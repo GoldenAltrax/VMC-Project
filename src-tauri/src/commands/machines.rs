@@ -57,8 +57,8 @@ pub fn create_machine(
     }
 
     conn.execute(
-        "INSERT INTO machines (name, model, serial_number, purchase_date, status, location, capacity, power_consumption, dimensions, weight, max_rpm, axis_travel)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        "INSERT INTO machines (name, model, serial_number, purchase_date, status, location, capacity, power_consumption, dimensions, weight, max_rpm, axis_travel, hourly_rate)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             input.name,
             input.model,
@@ -71,7 +71,8 @@ pub fn create_machine(
             input.dimensions,
             input.weight,
             input.max_rpm,
-            input.axis_travel
+            input.axis_travel,
+            input.hourly_rate.unwrap_or(0.0)
         ],
     )
     .map_err(|e| {
@@ -156,6 +157,10 @@ pub fn update_machine(
     if let Some(axis) = &input.axis_travel {
         updates.push("axis_travel = ?");
         values.push(Box::new(axis.clone()));
+    }
+    if let Some(rate) = input.hourly_rate {
+        updates.push("hourly_rate = ?");
+        values.push(Box::new(rate));
     }
 
     if updates.is_empty() {

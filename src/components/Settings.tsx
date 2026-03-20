@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { User, Lock, Users, Building2, Info, Plus, Edit, Trash2, X, Loader2, AlertCircle, Check, Eye, EyeOff, History } from 'lucide-react';
+import { User, Lock, Users, Building2, Info, Plus, Edit, Trash2, X, Loader2, AlertCircle, Check, Eye, EyeOff, History, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useClients } from '../hooks/useClients';
 import { AuditLog } from './AuditLog';
 import type { User as UserType, CreateUserInput, Client, CreateClientInput, UpdateClientInput } from '../types';
 
-type SettingsTab = 'profile' | 'users' | 'clients' | 'audit' | 'about';
+type SettingsTab = 'profile' | 'users' | 'clients' | 'audit' | 'shift' | 'about';
 
 export function Settings() {
   const { isAdmin } = useAuth();
@@ -17,6 +17,7 @@ export function Settings() {
     ...(isAdmin ? [{ id: 'users' as const, label: 'Users', icon: Users }] : []),
     { id: 'clients' as const, label: 'Clients', icon: Building2 },
     ...(isAdmin ? [{ id: 'audit' as const, label: 'Audit Log', icon: History }] : []),
+    ...(isAdmin ? [{ id: 'shift' as const, label: 'Shift', icon: Clock }] : []),
     { id: 'about' as const, label: 'About', icon: Info },
   ];
 
@@ -51,6 +52,7 @@ export function Settings() {
         {activeTab === 'users' && isAdmin && <UserManagement />}
         {activeTab === 'clients' && <ClientManagement />}
         {activeTab === 'audit' && isAdmin && <AuditLog />}
+        {activeTab === 'shift' && isAdmin && <ShiftSettings />}
         {activeTab === 'about' && <AboutSection />}
       </div>
     </div>
@@ -882,6 +884,93 @@ function ClientFormModal({ client, onSave, onClose }: ClientFormModalProps) {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function ShiftSettings() {
+  const [shiftStart, setShiftStart] = useState('09:00');
+  const [shiftEnd, setShiftEnd] = useState('21:00');
+  const [currentTime, setCurrentTime] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('vmc_shift_settings');
+    if (stored) {
+      try {
+        const { start, end } = JSON.parse(stored);
+        if (start) setShiftStart(start);
+        if (end) setShiftEnd(end);
+      } catch {
+        // ignore parse errors
+      }
+    }
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSave = () => {
+    localStorage.setItem('vmc_shift_settings', JSON.stringify({ start: shiftStart, end: shiftEnd }));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <h3 className="text-lg font-semibold flex items-center">
+        <Clock size={20} className="mr-2" />
+        Shift Settings
+      </h3>
+
+      <div className="p-4 bg-gray-700/50 rounded-lg flex items-center justify-between">
+        <span className="text-sm text-gray-400">Current System Time</span>
+        <span className="font-mono text-blue-400 text-lg">{currentTime}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 max-w-md">
+        <div>
+          <label className="block text-sm font-medium text-gray-400 mb-1">Shift Start</label>
+          <input
+            type="time"
+            value={shiftStart}
+            onChange={(e) => setShiftStart(e.target.value)}
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-400 mb-1">Shift End</label>
+          <input
+            type="time"
+            value={shiftEnd}
+            onChange={(e) => setShiftEnd(e.target.value)}
+            className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+          />
+        </div>
+      </div>
+
+      {saved && (
+        <div className="p-3 bg-green-900/50 border border-green-700 rounded-lg text-green-200 flex items-center max-w-md">
+          <Check size={18} className="mr-2" />
+          Shift settings saved
+        </div>
+      )}
+
+      <button
+        onClick={handleSave}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center"
+      >
+        <Check size={16} className="mr-2" />
+        Save Shift Settings
+      </button>
+
+      <p className="text-xs text-gray-500">
+        Pending jobs not completed by shift end will trigger a delay reason prompt on next login.
+      </p>
     </div>
   );
 }

@@ -8,10 +8,19 @@ import { Maintenance } from './components/Maintenance';
 import { Notifications } from './components/Notifications';
 import { Settings } from './components/Settings';
 import { WeeklyPlanner } from './components/WeeklyPlanner';
+import { CostTab } from './components/CostTab';
+import { FloorView } from './components/FloorView';
+import { OperatorReport } from './components/OperatorReport';
+import { Checklists } from './components/Checklists';
+import { ShiftHandover } from './components/ShiftHandover';
+import { DelayReasonModal } from './components/DelayReasonModal';
+import { ToastContainer } from './components/common/Toast';
+import { useShiftTimeSync } from './hooks/useShiftTimeSync';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const { pendingJobs, shouldPrompt, markChecked } = useShiftTimeSync();
 
   const renderContent = () => {
     switch (activeTab) {
@@ -29,6 +38,16 @@ export function App() {
         return <Notifications />;
       case 'settings':
         return <Settings />;
+      case 'cost':
+        return <CostTab />;
+      case 'floor':
+        return <FloorView />;
+      case 'reports':
+        return <OperatorReport />;
+      case 'checklists':
+        return <Checklists />;
+      case 'handover':
+        return <ShiftHandover />;
       default:
         return <Dashboard />;
     }
@@ -44,6 +63,10 @@ export function App() {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header activeTab={activeTab} setActiveTab={setActiveTab} />
+        {shouldPrompt && (
+          <DelayReasonModal pendingJobs={pendingJobs} onClose={markChecked} />
+        )}
+        <ToastContainer />
 
         <main className="flex-1 overflow-auto p-6">
           <AnimatePresence mode="wait">

@@ -203,6 +203,15 @@ export interface CreateScheduleInput {
   planned_hours: number;
   notes?: string;
   status?: ScheduleStatus;
+  cam_planned_hours?: number;
+  cam_actual_hours?: number;
+  cam_buffer_percentage?: number;
+  job_type?: 'inhouse' | 'outsource';
+  setup_hours?: number;
+  sequence_order?: number;
+  drawing_number?: string;
+  revision?: string;
+  material?: string;
 }
 
 export interface UpdateScheduleInput {
@@ -216,6 +225,15 @@ export interface UpdateScheduleInput {
   actual_hours?: number;
   notes?: string;
   status?: ScheduleStatus;
+  cam_planned_hours?: number;
+  cam_actual_hours?: number;
+  cam_buffer_percentage?: number;
+  job_type?: 'inhouse' | 'outsource';
+  setup_hours?: number;
+  sequence_order?: number;
+  drawing_number?: string;
+  revision?: string;
+  material?: string;
 }
 
 // Weekly Planner Types
@@ -232,6 +250,15 @@ export interface ScheduleEntry {
   actual_hours: number | null;
   notes: string | null;
   status: ScheduleStatus;
+  cam_planned_hours?: number | null;
+  cam_actual_hours?: number | null;
+  cam_buffer_percentage?: number | null;
+  job_type?: 'inhouse' | 'outsource';
+  setup_hours?: number | null;
+  sequence_order?: number | null;
+  drawing_number?: string | null;
+  revision?: string | null;
+  material?: string | null;
 }
 
 export interface DaySchedule {

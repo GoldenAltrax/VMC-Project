@@ -5,6 +5,9 @@ use crate::db::Database;
 use crate::models::{CreateProjectInput, Project, ProjectWithDetails, UpdateProjectInput};
 use crate::utils::{require_admin, require_edit_permission, require_view_permission, validate_session};
 
+#[allow(unused_imports)]
+use chrono::Local;
+
 /// Get all projects
 #[tauri::command]
 pub fn get_projects(token: String, db: State<'_, Database>) -> Result<Vec<ProjectWithDetails>, String> {
@@ -228,6 +231,12 @@ pub fn update_project(
         }
         updates.push("status = ?");
         values.push(Box::new(status.clone()));
+        // Auto-set actual_completion_date when status set to 'completed' and not explicitly provided
+        if status == "completed" && input.actual_completion_date.is_none() {
+            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+            updates.push("actual_completion_date = ?");
+            values.push(Box::new(today));
+        }
     }
     if let Some(planned) = input.planned_hours {
         updates.push("planned_hours = ?");
@@ -236,6 +245,10 @@ pub fn update_project(
     if let Some(actual) = input.actual_hours {
         updates.push("actual_hours = ?");
         values.push(Box::new(actual));
+    }
+    if let Some(completion_date) = &input.actual_completion_date {
+        updates.push("actual_completion_date = ?");
+        values.push(Box::new(completion_date.clone()));
     }
 
     if updates.is_empty() {

@@ -8,20 +8,26 @@ import type {
   UpdateScheduleInput
 } from '../types';
 
+// Helper to format a Date as local YYYY-MM-DD (avoids UTC timezone shift)
+export function formatLocalDate(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 // Helper to get Monday of current week
 export function getWeekStart(date: Date = new Date()): string {
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
   const monday = new Date(d.setDate(diff));
-  return monday.toISOString().split('T')[0];
+  return formatLocalDate(monday);
 }
 
 // Helper to add/subtract weeks
 export function addWeeks(dateStr: string, weeks: number): string {
-  const date = new Date(dateStr);
+  const date = new Date(dateStr + 'T00:00:00');
   date.setDate(date.getDate() + (weeks * 7));
-  return date.toISOString().split('T')[0];
+  return formatLocalDate(date);
 }
 
 export function useSchedules() {

@@ -16,6 +16,7 @@ pub struct Machine {
     pub weight: Option<String>,
     pub max_rpm: Option<String>,
     pub axis_travel: Option<String>,
+    pub hourly_rate: f64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -36,6 +37,7 @@ impl Machine {
             weight: row.get("weight")?,
             max_rpm: row.get("max_rpm")?,
             axis_travel: row.get("axis_travel")?,
+            hourly_rate: row.get("hourly_rate").unwrap_or(0.0),
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -65,6 +67,7 @@ pub struct CreateMachineInput {
     pub weight: Option<String>,
     pub max_rpm: Option<String>,
     pub axis_travel: Option<String>,
+    pub hourly_rate: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +84,7 @@ pub struct UpdateMachineInput {
     pub weight: Option<String>,
     pub max_rpm: Option<String>,
     pub axis_travel: Option<String>,
+    pub hourly_rate: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

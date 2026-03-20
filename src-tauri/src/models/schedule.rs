@@ -15,6 +15,15 @@ pub struct Schedule {
     pub actual_hours: Option<f64>,
     pub notes: Option<String>,
     pub status: String,
+    pub setup_hours: f64,
+    pub sequence_order: i64,
+    pub drawing_number: Option<String>,
+    pub revision: Option<String>,
+    pub material: Option<String>,
+    pub cam_planned_hours: Option<f64>,
+    pub cam_actual_hours: Option<f64>,
+    pub cam_buffer_percentage: Option<f64>,
+    pub job_type: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -34,6 +43,15 @@ impl Schedule {
             actual_hours: row.get("actual_hours")?,
             notes: row.get("notes")?,
             status: row.get("status")?,
+            setup_hours: row.get("setup_hours").unwrap_or(0.0),
+            sequence_order: row.get("sequence_order").unwrap_or(0),
+            drawing_number: row.get("drawing_number").ok().flatten(),
+            revision: row.get("revision").ok().flatten(),
+            material: row.get("material").ok().flatten(),
+            cam_planned_hours: row.get("cam_planned_hours").ok().flatten(),
+            cam_actual_hours: row.get("cam_actual_hours").ok().flatten(),
+            cam_buffer_percentage: row.get("cam_buffer_percentage").ok().flatten(),
+            job_type: row.get("job_type").ok().flatten(),
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
         })
@@ -61,6 +79,15 @@ pub struct CreateScheduleInput {
     pub planned_hours: f64,
     pub notes: Option<String>,
     pub status: Option<String>,
+    pub setup_hours: Option<f64>,
+    pub sequence_order: Option<i64>,
+    pub drawing_number: Option<String>,
+    pub revision: Option<String>,
+    pub material: Option<String>,
+    pub cam_planned_hours: Option<f64>,
+    pub cam_actual_hours: Option<f64>,
+    pub cam_buffer_percentage: Option<f64>,
+    pub job_type: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,6 +102,15 @@ pub struct UpdateScheduleInput {
     pub actual_hours: Option<f64>,
     pub notes: Option<String>,
     pub status: Option<String>,
+    pub setup_hours: Option<f64>,
+    pub sequence_order: Option<i64>,
+    pub drawing_number: Option<String>,
+    pub revision: Option<String>,
+    pub material: Option<String>,
+    pub cam_planned_hours: Option<f64>,
+    pub cam_actual_hours: Option<f64>,
+    pub cam_buffer_percentage: Option<f64>,
+    pub job_type: Option<String>,
 }
 
 /// Weekly schedule for a single machine (7 days)
@@ -112,6 +148,15 @@ pub struct ScheduleEntry {
     pub actual_hours: Option<f64>,
     pub notes: Option<String>,
     pub status: String,
+    pub setup_hours: f64,
+    pub sequence_order: i64,
+    pub drawing_number: Option<String>,
+    pub revision: Option<String>,
+    pub material: Option<String>,
+    pub cam_planned_hours: Option<f64>,
+    pub cam_actual_hours: Option<f64>,
+    pub cam_buffer_percentage: Option<f64>,
+    pub job_type: Option<String>,
 }
 
 /// Complete weekly schedule response

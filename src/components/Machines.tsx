@@ -443,6 +443,8 @@ function MachineDetails({
   canEdit: boolean;
   isAdmin: boolean;
 }) {
+  const [detailTab, setDetailTab] = useState<'specs' | 'history' | 'maintenance'>('specs');
+
   const statusIcons = {
     active: <CheckCircle2 className="text-green-500" size={18} />,
     idle: <Clock className="text-yellow-500" size={18} />,
@@ -493,72 +495,76 @@ function MachineDetails({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-gray-400 text-sm mb-1">General Information</h3>
-            <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
-              <div>
-                <span className="text-gray-400 text-xs">Model:</span>
-                <p>{machine.model}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Serial Number:</span>
-                <p>{machine.serial_number || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Purchase Date:</span>
-                <p>{machine.purchase_date || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Location:</span>
-                <p>{machine.location || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Capacity:</span>
-                <p>{machine.capacity || '-'}</p>
-              </div>
-            </div>
-          </div>
+      {/* General Info summary always visible */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gray-700/50 rounded-lg p-3">
+          <p className="text-gray-400 text-xs mb-1">Model</p>
+          <p className="font-medium text-sm">{machine.model}</p>
         </div>
-
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-gray-400 text-sm mb-1">Technical Specifications</h3>
-            <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
-              <div>
-                <span className="text-gray-400 text-xs">Power Consumption:</span>
-                <p>{machine.power_consumption || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Dimensions:</span>
-                <p>{machine.dimensions || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Weight:</span>
-                <p>{machine.weight || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Max RPM:</span>
-                <p>{machine.max_rpm || '-'}</p>
-              </div>
-              <div>
-                <span className="text-gray-400 text-xs">Axis Travel:</span>
-                <p>{machine.axis_travel || '-'}</p>
-              </div>
-            </div>
-          </div>
+        <div className="bg-gray-700/50 rounded-lg p-3">
+          <p className="text-gray-400 text-xs mb-1">Serial Number</p>
+          <p className="font-medium text-sm">{machine.serial_number || '-'}</p>
         </div>
+        <div className="bg-gray-700/50 rounded-lg p-3">
+          <p className="text-gray-400 text-xs mb-1">Location</p>
+          <p className="font-medium text-sm">{machine.location || '-'}</p>
+        </div>
+        <div className="bg-gray-700/50 rounded-lg p-3">
+          <p className="text-gray-400 text-xs mb-1">Capacity</p>
+          <p className="font-medium text-sm">{machine.capacity || '-'}</p>
+        </div>
+      </div>
 
-        <div className="space-y-4">
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-700 mb-6">
+        {(['specs', 'history', 'maintenance'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setDetailTab(tab)}
+            className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              detailTab === tab
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Specs Tab */}
+      {detailTab === 'specs' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
-            <h3 className="text-gray-400 text-sm mb-1">Assigned Projects</h3>
+            <h3 className="text-gray-400 text-sm mb-3 font-medium">General Information</h3>
+            <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Purchase Date</span>
+                <span className="text-sm">{machine.purchase_date || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Location</span>
+                <span className="text-sm">{machine.location || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Capacity</span>
+                <span className="text-sm">{machine.capacity || '-'}</span>
+              </div>
+              {(machine as any).hourly_rate != null && (
+                <div className="flex justify-between">
+                  <span className="text-gray-400 text-sm">Hourly Rate</span>
+                  <span className="text-sm text-green-400">₹{(machine as any).hourly_rate?.toFixed(2)}/h</span>
+                </div>
+              )}
+            </div>
+
+            <h3 className="text-gray-400 text-sm mb-3 mt-4 font-medium">Assigned Projects</h3>
             <div className="bg-gray-700/50 rounded-lg p-4">
               {history?.assigned_projects && history.assigned_projects.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {history.assigned_projects.map(project => (
                     <div key={project.id} className="p-2 border-l-2 border-blue-500">
-                      <p className="font-medium">{project.name}</p>
+                      <p className="font-medium text-sm">{project.name}</p>
                     </div>
                   ))}
                 </div>
@@ -567,72 +573,122 @@ function MachineDetails({
               )}
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="mt-6">
-        <h3 className="text-gray-400 text-sm mb-1">Maintenance History</h3>
-        <div className="bg-gray-700/50 rounded-lg overflow-hidden">
-          {history?.maintenance && history.maintenance.length > 0 ? (
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-700">
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Type</th>
-                  <th className="text-left p-3">Description</th>
-                  <th className="text-left p-3">Status</th>
-                  <th className="text-left p-3">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.maintenance.map((record) => (
-                  <tr key={record.id} className="border-t border-gray-700">
-                    <td className="p-3">{record.date}</td>
-                    <td className="p-3 capitalize">{record.maintenance_type}</td>
-                    <td className="p-3">{record.description || '-'}</td>
-                    <td className="p-3 capitalize">{record.status}</td>
-                    <td className="p-3">{record.cost ? `$${record.cost.toFixed(2)}` : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="p-4 text-gray-400 text-sm">No maintenance records</p>
-          )}
+          <div>
+            <h3 className="text-gray-400 text-sm mb-3 font-medium">Technical Specifications</h3>
+            <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Power Consumption</span>
+                <span className="text-sm">{machine.power_consumption || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Dimensions</span>
+                <span className="text-sm">{machine.dimensions || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Weight</span>
+                <span className="text-sm">{machine.weight || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Max RPM</span>
+                <span className="text-sm">{machine.max_rpm || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400 text-sm">Axis Travel</span>
+                <span className="text-sm">{machine.axis_travel || '-'}</span>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="mt-6">
-        <h3 className="text-gray-400 text-sm mb-1">Recent Schedules</h3>
-        <div className="bg-gray-700/50 rounded-lg overflow-hidden">
-          {history?.schedules && history.schedules.length > 0 ? (
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-700">
-                  <th className="text-left p-3">Date</th>
-                  <th className="text-left p-3">Load Name</th>
-                  <th className="text-left p-3">Planned Hours</th>
-                  <th className="text-left p-3">Actual Hours</th>
-                  <th className="text-left p-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.schedules.slice(0, 10).map((schedule) => (
-                  <tr key={schedule.id} className="border-t border-gray-700">
-                    <td className="p-3">{schedule.date}</td>
-                    <td className="p-3">{schedule.load_name || '-'}</td>
-                    <td className="p-3">{schedule.planned_hours}h</td>
-                    <td className="p-3">{schedule.actual_hours ? `${schedule.actual_hours}h` : '-'}</td>
-                    <td className="p-3 capitalize">{schedule.status}</td>
+      {/* History Tab */}
+      {detailTab === 'history' && (
+        <div>
+          <h3 className="text-gray-400 text-sm mb-3 font-medium">Recent Schedules</h3>
+          <div className="bg-gray-700/50 rounded-lg overflow-hidden">
+            {history?.schedules && history.schedules.length > 0 ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-700">
+                    <th className="text-left p-3 text-sm">Date</th>
+                    <th className="text-left p-3 text-sm">Load Name</th>
+                    <th className="text-left p-3 text-sm">Planned Hours</th>
+                    <th className="text-left p-3 text-sm">Actual Hours</th>
+                    <th className="text-left p-3 text-sm">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="p-4 text-gray-400 text-sm">No recent schedules</p>
-          )}
+                </thead>
+                <tbody>
+                  {history.schedules.slice(0, 20).map((schedule) => (
+                    <tr key={schedule.id} className="border-t border-gray-700 hover:bg-gray-700/30">
+                      <td className="p-3 text-sm">{schedule.date}</td>
+                      <td className="p-3 text-sm">{schedule.load_name || '-'}</td>
+                      <td className="p-3 text-sm text-blue-400">{schedule.planned_hours}h</td>
+                      <td className="p-3 text-sm text-green-400">{schedule.actual_hours ? `${schedule.actual_hours}h` : '-'}</td>
+                      <td className="p-3 text-sm capitalize">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          schedule.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          schedule.status === 'in-progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                          schedule.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                          'bg-gray-500/20 text-gray-400'
+                        }`}>
+                          {schedule.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="p-4 text-gray-400 text-sm">No recent schedules</p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Maintenance Tab */}
+      {detailTab === 'maintenance' && (
+        <div>
+          <h3 className="text-gray-400 text-sm mb-3 font-medium">Maintenance History</h3>
+          <div className="bg-gray-700/50 rounded-lg overflow-hidden">
+            {history?.maintenance && history.maintenance.length > 0 ? (
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-700">
+                    <th className="text-left p-3 text-sm">Date</th>
+                    <th className="text-left p-3 text-sm">Type</th>
+                    <th className="text-left p-3 text-sm">Description</th>
+                    <th className="text-left p-3 text-sm">Status</th>
+                    <th className="text-left p-3 text-sm">Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.maintenance.map((record) => (
+                    <tr key={record.id} className="border-t border-gray-700 hover:bg-gray-700/30">
+                      <td className="p-3 text-sm">{record.date}</td>
+                      <td className="p-3 text-sm capitalize">{record.maintenance_type}</td>
+                      <td className="p-3 text-sm">{record.description || '-'}</td>
+                      <td className="p-3 text-sm capitalize">
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          record.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                          record.status === 'in-progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                          record.status === 'cancelled' ? 'bg-red-500/20 text-red-400' :
+                          'bg-blue-500/20 text-blue-400'
+                        }`}>
+                          {record.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-sm">{record.cost ? `₹${record.cost.toFixed(2)}` : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="p-4 text-gray-400 text-sm">No maintenance records</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -661,6 +717,7 @@ function MachineForm({
     weight: machine?.weight || '',
     max_rpm: machine?.max_rpm || '',
     axis_travel: machine?.axis_travel || '',
+    hourly_rate: (machine as any)?.hourly_rate ?? '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -673,7 +730,7 @@ function MachineForm({
 
     if (machine) {
       // Update - only send changed fields
-      const updates: UpdateMachineInput = {};
+      const updates: UpdateMachineInput & { hourly_rate?: number } = {};
       if (formData.name !== machine.name) updates.name = formData.name;
       if (formData.model !== machine.model) updates.model = formData.model;
       if (formData.serial_number !== machine.serial_number) updates.serial_number = formData.serial_number || undefined;
@@ -686,10 +743,13 @@ function MachineForm({
       if (formData.weight !== machine.weight) updates.weight = formData.weight || undefined;
       if (formData.max_rpm !== machine.max_rpm) updates.max_rpm = formData.max_rpm || undefined;
       if (formData.axis_travel !== machine.axis_travel) updates.axis_travel = formData.axis_travel || undefined;
+      if (formData.hourly_rate !== '' && formData.hourly_rate !== (machine as any)?.hourly_rate) {
+        updates.hourly_rate = formData.hourly_rate !== '' ? Number(formData.hourly_rate) : undefined;
+      }
       onSave(updates);
     } else {
       // Create
-      const createData: CreateMachineInput = {
+      const createData: CreateMachineInput & { hourly_rate?: number } = {
         name: formData.name,
         model: formData.model,
         status: formData.status,
@@ -702,6 +762,7 @@ function MachineForm({
         weight: formData.weight || undefined,
         max_rpm: formData.max_rpm || undefined,
         axis_travel: formData.axis_travel || undefined,
+        hourly_rate: formData.hourly_rate !== '' ? Number(formData.hourly_rate) : undefined,
       };
       onSave(createData);
     }
@@ -877,6 +938,21 @@ function MachineForm({
                 value={formData.axis_travel}
                 onChange={handleChange}
                 placeholder="e.g., X:800mm Y:500mm Z:600mm"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Hourly Rate (₹/h)
+              </label>
+              <input
+                type="number"
+                name="hourly_rate"
+                value={formData.hourly_rate}
+                onChange={handleChange}
+                placeholder="e.g., 500.00"
+                min="0"
+                step="0.01"
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

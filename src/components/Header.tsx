@@ -158,6 +158,20 @@ export function Header({ activeTab, setActiveTab }: HeaderProps) {
         return 'System Settings';
       case 'clients':
         return 'Client Management';
+      case 'notifications':
+        return 'Notifications';
+      case 'maintenance':
+        return 'Maintenance';
+      case 'cost':
+        return 'Cost Management';
+      case 'floor':
+        return 'Floor View';
+      case 'reports':
+        return 'Operator Reports';
+      case 'checklists':
+        return 'Pre-Shift Checklists';
+      case 'handover':
+        return 'Shift Handover';
       default:
         return 'Dashboard';
     }
@@ -364,10 +378,19 @@ export function Header({ activeTab, setActiveTab }: HeaderProps) {
               </div>
 
               {alerts.length > 0 && (
-                <div className="px-4 py-2 border-t border-gray-600">
-                  <p className="text-xs text-gray-500 text-center">
-                    Showing {Math.min(10, alerts.length)} of {alerts.length} notifications
+                <div className="px-4 py-2 border-t border-gray-600 flex items-center justify-between">
+                  <p className="text-xs text-gray-500">
+                    Showing {Math.min(10, alerts.length)} of {alerts.length}
                   </p>
+                  <button
+                    onClick={() => {
+                      setShowNotifications(false);
+                      if (setActiveTab) setActiveTab('notifications');
+                    }}
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    View all →
+                  </button>
                 </div>
               )}
             </div>

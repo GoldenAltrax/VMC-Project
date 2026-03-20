@@ -17,7 +17,7 @@ export function Projects() {
   const { projects, loading, error, fetchProjects, createProject, updateProject, deleteProject, assignMachines, clearError } = useProjects();
   const { machines, fetchMachines } = useMachines();
   const { clients, fetchClients } = useClients();
-  const { canEdit, isAdmin } = useAuth();
+  const { canEdit, isAdmin, isOperator } = useAuth();
 
   const [selectedProject, setSelectedProject] = useState<ProjectWithDetails | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -113,6 +113,16 @@ export function Projects() {
     setIsEditing(true);
     setFormError(null);
   };
+
+  if (isOperator && !isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-3">
+        <AlertCircle className="w-12 h-12 text-red-400" />
+        <h3 className="text-lg font-semibold text-gray-200">Access Denied</h3>
+        <p className="text-gray-400 text-sm">Operators do not have access to the Projects section.</p>
+      </div>
+    );
+  }
 
   if (loading && projects.length === 0) {
     return (
@@ -248,6 +258,32 @@ function getStatusColor(status: string): string {
   }
 }
 
+function DeliveryBadge({ project }: { project: ProjectWithDetails }) {
+  const actualCompletion = (project as any).actual_completion_date as string | null | undefined;
+
+  if (project.status === 'completed') {
+    if (!actualCompletion) {
+      return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400">No Date</span>;
+    }
+    const isOnTime = new Date(actualCompletion) <= new Date(project.end_date || '9999-12-31');
+    return isOnTime
+      ? <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">On Time</span>
+      : <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">Late</span>;
+  }
+
+  if (project.end_date) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const end = new Date(project.end_date);
+    const diffDays = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400">{Math.abs(diffDays)}d overdue</span>;
+    if (diffDays === 0) return <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-500/20 text-orange-400">Due today</span>;
+    return <span className="text-xs text-gray-400">{diffDays}d left</span>;
+  }
+
+  return <span className="text-xs text-gray-500">-</span>;
+}
+
 // ============================================
 // Project Table Component with Filters/Sort/Pagination
 // ============================================
@@ -371,13 +407,14 @@ function ProjectTable({ projects, onView, onEdit, onDelete, canEdit, isAdmin }: 
                   currentSort={sort}
                   onSort={setSort}
                 />
+                <TableHeader label="Delivery" />
                 {canEdit && <TableHeader label="Actions" />}
               </tr>
             </thead>
             <tbody>
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={canEdit ? 7 : 6} className="p-8 text-center text-gray-400">
+                  <td colSpan={canEdit ? 8 : 7} className="p-8 text-center text-gray-400">
                     {projects.length === 0
                       ? `No projects found. ${canEdit ? 'Click "New Project" to create one.' : ''}`
                       : 'No projects match your filters'}
@@ -423,6 +460,9 @@ function ProjectTable({ projects, onView, onEdit, onDelete, canEdit, isAdmin }: 
                     </td>
                     <td className="p-4 text-sm">
                       {project.planned_hours} / {project.actual_hours}
+                    </td>
+                    <td className="p-4 text-sm">
+                      <DeliveryBadge project={project} />
                     </td>
                     {canEdit && (
                       <td className="p-4">
@@ -610,6 +650,7 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
     planned_hours: project.planned_hours,
     actual_hours: project.actual_hours,
     assigned_machines: project.assigned_machines || [],
+    actual_completion_date: (project as any).actual_completion_date || '',
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -640,7 +681,13 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const input: CreateProjectInput | UpdateProjectInput = {
+    // Auto-set actual_completion_date when status is 'completed' and no date exists
+    let actualCompletionDate = formData.actual_completion_date || undefined;
+    if (formData.status === 'completed' && !actualCompletionDate) {
+      actualCompletionDate = new Date().toISOString().split('T')[0];
+    }
+
+    const input: (CreateProjectInput | UpdateProjectInput) & { actual_completion_date?: string } = {
       name: formData.name,
       client_id: formData.client_id || undefined,
       description: formData.description || undefined,
@@ -648,6 +695,7 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
       end_date: formData.end_date || undefined,
       status: formData.status,
       planned_hours: formData.planned_hours,
+      actual_completion_date: actualCompletionDate,
     };
 
     if (project.id > 0) {
@@ -751,6 +799,23 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
                 />
               </div>
             </div>
+
+            {formData.status === 'completed' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">
+                  Actual Completion Date
+                </label>
+                <input
+                  type="date"
+                  name="actual_completion_date"
+                  value={formData.actual_completion_date}
+                  onChange={handleChange}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={saving}
+                />
+                <p className="text-xs text-gray-500 mt-1">Leave blank to auto-set today's date</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>

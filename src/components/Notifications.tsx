@@ -37,15 +37,33 @@ export function Notifications() {
     dismissAlert,
     clearReadAlerts,
     clearError,
+    createAlert,
   } = useAlerts();
 
   const [selectedAlerts, setSelectedAlerts] = useState<Set<number>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
-    fetchAlerts();
-    fetchAlertStats();
-  }, [fetchAlerts, fetchAlertStats]);
+    const init = async () => {
+      await fetchAlerts();
+      await fetchAlertStats();
+      // Seed a welcome notification if none exist yet
+      if (!localStorage.getItem('vmc_seeded_notification')) {
+        try {
+          await createAlert({
+            alert_type: 'info',
+            priority: 'medium',
+            title: 'Welcome to VMC Planner',
+            message: 'System is operational. Monitor machine schedules and maintenance from this panel.',
+          });
+          localStorage.setItem('vmc_seeded_notification', 'true');
+        } catch {
+          // Non-critical — ignore failures
+        }
+      }
+    };
+    init();
+  }, [fetchAlerts, fetchAlertStats, createAlert]);
 
   const handleRefresh = async () => {
     await fetchAlerts();

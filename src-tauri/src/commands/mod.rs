@@ -9,6 +9,9 @@ pub mod alerts;
 pub mod dashboard;
 pub mod integrity;
 pub mod audit;
+pub mod downtime;
+pub mod checklists;
+pub mod shift_logs;
 
 pub use auth::*;
 pub use users::*;
@@ -21,3 +24,6 @@ pub use alerts::*;
 pub use dashboard::*;
 pub use integrity::*;
 pub use audit::*;
+pub use downtime::*;
+pub use checklists::*;
+pub use shift_logs::*;

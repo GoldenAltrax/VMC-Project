@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { Login } from "./components/Login";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ToastProvider } from "./context/ToastContext";
 import { AnimatePresence, motion } from "framer-motion";
 import { LoadingPopup } from "./components/LoadingPopup";
 
@@ -72,7 +73,9 @@ function AuthenticatedApp() {
 function Root() {
   return (
     <AuthProvider>
-      <AuthenticatedApp />
+      <ToastProvider>
+        <AuthenticatedApp />
+      </ToastProvider>
     </AuthProvider>
   );
 }

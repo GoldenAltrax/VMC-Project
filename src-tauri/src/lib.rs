@@ -117,6 +117,22 @@ pub fn run() {
             commands::get_audit_logs,
             commands::get_audit_stats,
             commands::get_audit_filter_options,
+            // Downtime commands
+            commands::get_downtime_log,
+            commands::create_downtime,
+            commands::close_downtime,
+            commands::delete_downtime,
+            // Checklist commands
+            commands::get_checklist_templates,
+            commands::create_checklist_template,
+            commands::delete_checklist_template,
+            commands::submit_checklist,
+            commands::get_checklist_completions,
+            // Shift log commands
+            commands::get_shift_logs,
+            commands::create_shift_log,
+            // Operator schedule command
+            commands::get_operator_schedule,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

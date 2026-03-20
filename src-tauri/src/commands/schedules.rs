@@ -75,6 +75,15 @@ pub fn get_weekly_schedule(
                         actual_hours: row.get("actual_hours")?,
                         notes: row.get("notes")?,
                         status: row.get("status")?,
+                        setup_hours: row.get("setup_hours").unwrap_or(0.0),
+                        sequence_order: row.get("sequence_order").unwrap_or(0),
+                        drawing_number: row.get("drawing_number").ok().flatten(),
+                        revision: row.get("revision").ok().flatten(),
+                        material: row.get("material").ok().flatten(),
+                        cam_planned_hours: row.get("cam_planned_hours").ok().flatten(),
+                        cam_actual_hours: row.get("cam_actual_hours").ok().flatten(),
+                        cam_buffer_percentage: row.get("cam_buffer_percentage").ok().flatten(),
+                        job_type: row.get("job_type").ok().flatten(),
                     })
                 })
                 .map_err(|e| e.to_string())?
@@ -167,8 +176,8 @@ pub fn create_schedule(
     let status = input.status.unwrap_or_else(|| "scheduled".to_string());
 
     conn.execute(
-        "INSERT INTO schedules (machine_id, project_id, date, start_time, end_time, operator_id, load_name, planned_hours, notes, status, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO schedules (machine_id, project_id, date, start_time, end_time, operator_id, load_name, planned_hours, notes, status, setup_hours, sequence_order, drawing_number, revision, material, cam_planned_hours, cam_actual_hours, cam_buffer_percentage, job_type, created_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
         params![
             input.machine_id,
             input.project_id,
@@ -180,6 +189,15 @@ pub fn create_schedule(
             input.planned_hours,
             input.notes,
             status,
+            input.setup_hours.unwrap_or(0.0),
+            input.sequence_order.unwrap_or(0),
+            input.drawing_number,
+            input.revision,
+            input.material,
+            input.cam_planned_hours,
+            input.cam_actual_hours,
+            input.cam_buffer_percentage,
+            input.job_type,
             user.id
         ],
     )
@@ -247,6 +265,42 @@ pub fn update_schedule(
         }
         updates.push("status = ?");
         values.push(Box::new(status.clone()));
+    }
+    if let Some(setup) = input.setup_hours {
+        updates.push("setup_hours = ?");
+        values.push(Box::new(setup));
+    }
+    if let Some(seq) = input.sequence_order {
+        updates.push("sequence_order = ?");
+        values.push(Box::new(seq));
+    }
+    if let Some(drawing) = &input.drawing_number {
+        updates.push("drawing_number = ?");
+        values.push(Box::new(drawing.clone()));
+    }
+    if let Some(rev) = &input.revision {
+        updates.push("revision = ?");
+        values.push(Box::new(rev.clone()));
+    }
+    if let Some(mat) = &input.material {
+        updates.push("material = ?");
+        values.push(Box::new(mat.clone()));
+    }
+    if let Some(cam_planned) = input.cam_planned_hours {
+        updates.push("cam_planned_hours = ?");
+        values.push(Box::new(cam_planned));
+    }
+    if let Some(cam_actual) = input.cam_actual_hours {
+        updates.push("cam_actual_hours = ?");
+        values.push(Box::new(cam_actual));
+    }
+    if let Some(cam_buffer) = input.cam_buffer_percentage {
+        updates.push("cam_buffer_percentage = ?");
+        values.push(Box::new(cam_buffer));
+    }
+    if let Some(job) = &input.job_type {
+        updates.push("job_type = ?");
+        values.push(Box::new(job.clone()));
     }
 
     if updates.is_empty() {
@@ -432,4 +486,61 @@ pub fn copy_week_schedule(
     }
 
     Ok(copied)
+}
+
+/// Get today's schedule for the currently logged-in operator
+#[tauri::command]
+pub fn get_operator_schedule(
+    token: String,
+    date: String,
+    db: State<'_, Database>,
+) -> Result<Vec<ScheduleWithDetails>, String> {
+    let conn = db.conn.lock();
+    let user = validate_session(&conn, &token)?;
+    require_view_permission(&user)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT s.*, m.name as machine_name, p.name as project_name, u.full_name as operator_name
+         FROM schedules s
+         LEFT JOIN machines m ON s.machine_id = m.id
+         LEFT JOIN projects p ON s.project_id = p.id
+         LEFT JOIN users u ON s.operator_id = u.id
+         WHERE s.operator_id = ?1 AND s.date = ?2
+         ORDER BY s.sequence_order ASC, s.start_time ASC"
+    ).map_err(|e| e.to_string())?;
+
+    let schedules: Vec<ScheduleWithDetails> = stmt.query_map(params![user.id, date], |row| {
+        Ok(ScheduleWithDetails {
+            schedule: Schedule {
+                id: row.get("id")?,
+                machine_id: row.get("machine_id")?,
+                project_id: row.get("project_id")?,
+                date: row.get("date")?,
+                start_time: row.get("start_time")?,
+                end_time: row.get("end_time")?,
+                operator_id: row.get("operator_id")?,
+                load_name: row.get("load_name")?,
+                planned_hours: row.get("planned_hours")?,
+                actual_hours: row.get("actual_hours")?,
+                notes: row.get("notes")?,
+                status: row.get("status")?,
+                setup_hours: row.get("setup_hours").unwrap_or(0.0),
+                sequence_order: row.get("sequence_order").unwrap_or(0),
+                drawing_number: row.get("drawing_number").ok().flatten(),
+                revision: row.get("revision").ok().flatten(),
+                material: row.get("material").ok().flatten(),
+                cam_planned_hours: row.get("cam_planned_hours").ok().flatten(),
+                cam_actual_hours: row.get("cam_actual_hours").ok().flatten(),
+                cam_buffer_percentage: row.get("cam_buffer_percentage").ok().flatten(),
+                job_type: row.get("job_type").ok().flatten(),
+                created_at: row.get("created_at")?,
+                updated_at: row.get("updated_at")?,
+            },
+            machine_name: row.get("machine_name")?,
+            project_name: row.get("project_name")?,
+            operator_name: row.get("operator_name")?,
+        })
+    }).map_err(|e| e.to_string())?.filter_map(|r| r.ok()).collect();
+
+    Ok(schedules)
 }

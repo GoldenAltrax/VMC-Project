@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, X, Loader2, AlertCircle, Clock, Copy, FileSpreadsheet, FileText } from 'lucide-react';
-import { useSchedules, addWeeks } from '../hooks/useSchedules';
+import { ChevronLeft, ChevronRight, Plus, Trash2, X, Loader2, AlertCircle, Clock, Copy, FileSpreadsheet, FileText, AlertTriangle } from 'lucide-react';
+import { useSchedules, addWeeks, formatLocalDate } from '../hooks/useSchedules';
 import { useProjects } from '../hooks/useProjects';
 import { useAuth } from '../context/AuthContext';
 import { exportWeeklyScheduleToExcel, exportWeeklyScheduleToPDF } from '../utils/export';
+import { useToast } from '../context/ToastContext';
 import type { ScheduleEntry, CreateScheduleInput, UpdateScheduleInput, ProjectWithDetails, MachineWeekSchedule, DaySchedule, ScheduleStatus } from '../types';
 
 export function WeeklyPlanner() {
@@ -26,6 +27,7 @@ export function WeeklyPlanner() {
 
   const { projects, fetchProjects } = useProjects();
   const { canEdit } = useAuth();
+  const { showToast } = useToast();
 
   const [editingEntry, setEditingEntry] = useState<{
     machineId: number;
@@ -37,6 +39,7 @@ export function WeeklyPlanner() {
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [copyTargetWeek, setCopyTargetWeek] = useState('');
   const [copyLoading, setCopyLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'gantt'>('grid');
 
   useEffect(() => {
     fetchWeeklySchedule();
@@ -95,8 +98,9 @@ export function WeeklyPlanner() {
     if (confirm('Are you sure you want to delete this schedule entry?')) {
       try {
         await deleteSchedule(entryId);
+        showToast('Entry deleted', 'success');
       } catch {
-        // Error handled in hook
+        showToast('Failed to delete entry', 'error');
       }
     }
   };
@@ -159,11 +163,11 @@ export function WeeklyPlanner() {
             onClick={goToCurrentWeek}
             className={`px-3 py-2 rounded-lg text-sm ${
               isCurrentWeek()
-                ? 'bg-blue-600 text-white'
+                ? 'bg-blue-600 text-white cursor-default'
                 : 'bg-gray-700 hover:bg-gray-600'
             }`}
           >
-            Current Week
+            {isCurrentWeek() ? 'This Week' : 'Go to Today'}
           </button>
           <button
             onClick={goToNextWeek}
@@ -208,6 +212,22 @@ export function WeeklyPlanner() {
               </button>
             </div>
           )}
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-gray-700 rounded-lg p-1 ml-2">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1.5 rounded text-sm ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Grid
+            </button>
+            <button
+              onClick={() => setViewMode('gantt')}
+              className={`px-3 py-1.5 rounded text-sm ${viewMode === 'gantt' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              Gantt
+            </button>
+          </div>
         </div>
       </div>
 
@@ -243,52 +263,56 @@ export function WeeklyPlanner() {
         </div>
       )}
 
-      {/* Main schedule table */}
-      <div className="bg-gray-800 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-700">
-                <th className="p-4 text-left min-w-[150px] sticky left-0 bg-gray-700 z-10">Machine</th>
-                {weekDates.map((date, index) => {
-                  const isToday = date.toDateString() === new Date().toDateString();
-                  return (
-                    <th
-                      key={index}
-                      className={`p-4 text-center min-w-[180px] ${isToday ? 'bg-blue-900/30' : ''}`}
-                    >
-                      <div className={`font-medium ${isToday ? 'text-blue-400' : ''}`}>
-                        {formatDateHeader(date)}
-                      </div>
-                    </th>
-                  );
-                })}
-                <th className="p-4 text-center min-w-[100px]">Week Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {weeklySchedule?.machines.map((machine) => (
-                <MachineRow
-                  key={machine.machine_id}
-                  machine={machine}
-                  weekDates={weekDates}
-                  canEdit={canEdit}
-                  onAddEntry={handleAddEntry}
-                  onEditEntry={handleEditEntry}
-                  onDeleteEntry={handleDeleteEntry}
-                />
-              ))}
-              {(!weeklySchedule || weeklySchedule.machines.length === 0) && (
-                <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-400">
-                    No machines scheduled for this week.
-                  </td>
+      {/* Main schedule view */}
+      {viewMode === 'grid' ? (
+        <div className="bg-gray-800 rounded-xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-700">
+                  <th className="p-4 text-left min-w-[150px] sticky left-0 bg-gray-700 z-10">Machine</th>
+                  {weekDates.map((date, index) => {
+                    const isToday = date.toDateString() === new Date().toDateString();
+                    return (
+                      <th
+                        key={index}
+                        className={`p-4 text-center min-w-[180px] ${isToday ? 'bg-blue-900/30' : ''}`}
+                      >
+                        <div className={`font-medium ${isToday ? 'text-blue-400' : ''}`}>
+                          {formatDateHeader(date)}
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="p-4 text-center min-w-[100px]">Week Total</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {weeklySchedule?.machines.map((machine) => (
+                  <MachineRow
+                    key={machine.machine_id}
+                    machine={machine}
+                    weekDates={weekDates}
+                    canEdit={canEdit}
+                    onAddEntry={handleAddEntry}
+                    onEditEntry={handleEditEntry}
+                    onDeleteEntry={handleDeleteEntry}
+                  />
+                ))}
+                {(!weeklySchedule || weeklySchedule.machines.length === 0) && (
+                  <tr>
+                    <td colSpan={9} className="p-8 text-center text-gray-400">
+                      No machines scheduled for this week.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <GanttView weeklySchedule={weeklySchedule} weekDates={weekDates} />
+      )}
 
       {/* Entry Edit Modal */}
       {editingEntry && (
@@ -301,12 +325,14 @@ export function WeeklyPlanner() {
             try {
               if (editingEntry.entry) {
                 await updateSchedule(editingEntry.entry.id, input as UpdateScheduleInput);
+                showToast('Schedule updated', 'success');
               } else {
                 await createSchedule(input as CreateScheduleInput);
+                showToast('Schedule created successfully', 'success');
               }
               setEditingEntry(null);
             } catch {
-              // Error handled in hook
+              showToast('Failed to save schedule', 'error');
             }
           }}
           onLogHours={async (hours) => {
@@ -392,7 +418,7 @@ function MachineRow({ machine, weekDates, canEdit, onAddEntry, onEditEntry, onDe
       {machine.days.map((day, dayIndex) => {
         const date = weekDates[dayIndex];
         const isToday = date.toDateString() === new Date().toDateString();
-        const dateStr = date.toISOString().split('T')[0];
+        const dateStr = formatLocalDate(date);
 
         return (
           <DayCell
@@ -449,16 +475,38 @@ function DayCell({ day, machineId, dayIndex, dateStr, isToday, canEdit, onAddEnt
             }`}
             onClick={() => canEdit && onEditEntry(machineId, dayIndex, entry, dateStr)}
           >
-            <div className="font-medium truncate" title={entry.load_name || entry.project_name || 'No title'}>
-              {entry.load_name || entry.project_name || 'Untitled'}
+            <div className="flex items-center justify-between gap-1">
+              <div className="font-medium truncate flex-1" title={entry.load_name || entry.project_name || 'No title'}>
+                {entry.load_name || entry.project_name || 'Untitled'}
+              </div>
+              {entry.job_type && (
+                <span className={`text-[10px] px-1 py-0.5 rounded flex-shrink-0 ${entry.job_type === 'outsource' ? 'bg-blue-500/30 text-blue-300' : 'bg-green-500/30 text-green-300'}`}>
+                  {entry.job_type === 'outsource' ? 'OUT' : 'IN'}
+                </span>
+              )}
             </div>
             <div className="flex justify-between items-center mt-1 text-gray-400">
               <span className="text-blue-400">{entry.planned_hours}h</span>
               <span className="text-green-400">{entry.actual_hours ?? '-'}h</span>
             </div>
+            {entry.cam_planned_hours != null && (
+              <div className="text-purple-400 mt-0.5 text-[10px]">
+                CAM: {entry.cam_planned_hours}h planned
+              </div>
+            )}
             {entry.operator_name && (
               <div className="text-gray-500 truncate mt-0.5" title={entry.operator_name}>
                 {entry.operator_name}
+              </div>
+            )}
+            {(entry as any).drawing_number && (
+              <div className="text-[10px] text-purple-400 mt-0.5">
+                Dwg: {(entry as any).drawing_number}{(entry as any).revision ? ` ${(entry as any).revision}` : ''}
+              </div>
+            )}
+            {entry.notes && (
+              <div className="text-[10px] text-gray-500 italic mt-0.5 truncate" title={entry.notes}>
+                "{entry.notes}"
               </div>
             )}
             {canEdit && (
@@ -513,15 +561,39 @@ function EntryModal({ machineId, date, entry, projects, onSave, onLogHours, onCl
     end_time: entry?.end_time || '',
     notes: entry?.notes || '',
     status: entry?.status || 'scheduled',
+    job_type: entry?.job_type || 'inhouse',
+    cam_planned_hours: entry?.cam_planned_hours ?? '',
+    cam_actual_hours: entry?.cam_actual_hours ?? '',
+    cam_buffer_percentage: entry?.cam_buffer_percentage ?? '',
+    setup_hours: (entry as any)?.setup_hours ?? 0,
+    drawing_number: (entry as any)?.drawing_number ?? '',
+    revision: (entry as any)?.revision ?? '',
+    material: (entry as any)?.material ?? '',
+    sequence_order: (entry as any)?.sequence_order ?? 0,
   });
   const [saving, setSaving] = useState(false);
   const [loggingHours, setLoggingHours] = useState(false);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (formData.planned_hours > 12) {
+      setConflictWarning(`Warning: ${formData.planned_hours}h exceeds a typical 12h shift.`);
+    } else {
+      setConflictWarning(null);
+    }
+  }, [formData.planned_hours]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const input: CreateScheduleInput | UpdateScheduleInput = {
+      const input: (CreateScheduleInput | UpdateScheduleInput) & {
+        setup_hours?: number;
+        drawing_number?: string;
+        revision?: string;
+        material?: string;
+        sequence_order?: number;
+      } = {
         machine_id: machineId,
         date,
         project_id: formData.project_id ? Number(formData.project_id) : undefined,
@@ -531,6 +603,15 @@ function EntryModal({ machineId, date, entry, projects, onSave, onLogHours, onCl
         end_time: formData.end_time || undefined,
         notes: formData.notes || undefined,
         status: formData.status as ScheduleStatus,
+        job_type: formData.job_type as 'inhouse' | 'outsource',
+        cam_planned_hours: formData.cam_planned_hours !== '' ? Number(formData.cam_planned_hours) : undefined,
+        cam_actual_hours: formData.cam_actual_hours !== '' ? Number(formData.cam_actual_hours) : undefined,
+        cam_buffer_percentage: formData.cam_buffer_percentage !== '' ? Number(formData.cam_buffer_percentage) : undefined,
+        setup_hours: formData.setup_hours > 0 ? formData.setup_hours : undefined,
+        drawing_number: formData.drawing_number || undefined,
+        revision: formData.revision || undefined,
+        material: formData.material || undefined,
+        sequence_order: formData.sequence_order > 0 ? formData.sequence_order : undefined,
       };
       await onSave(input);
     } finally {
@@ -664,6 +745,119 @@ function EntryModal({ machineId, date, entry, projects, onSave, onLogHours, onCl
 
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1">
+              Job Type
+            </label>
+            <select
+              value={formData.job_type}
+              onChange={(e) => setFormData(prev => ({ ...prev, job_type: e.target.value }))}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white"
+              disabled={saving}
+            >
+              <option value="inhouse">Inhouse</option>
+              <option value="outsource">Outsource</option>
+            </select>
+          </div>
+
+          <div className="border-t border-gray-700 pt-4">
+            <p className="text-sm font-medium text-gray-400 mb-3">CAM Hours</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Planned</label>
+                <input
+                  type="number"
+                  value={formData.cam_planned_hours}
+                  onChange={(e) => setFormData(prev => ({ ...prev, cam_planned_hours: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  min="0"
+                  step="0.5"
+                  disabled={saving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Actual</label>
+                <input
+                  type="number"
+                  value={formData.cam_actual_hours}
+                  onChange={(e) => setFormData(prev => ({ ...prev, cam_actual_hours: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  min="0"
+                  step="0.5"
+                  disabled={saving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Buffer %</label>
+                <input
+                  type="number"
+                  value={formData.cam_buffer_percentage}
+                  onChange={(e) => setFormData(prev => ({ ...prev, cam_buffer_percentage: e.target.value }))}
+                  placeholder="0"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  min="0"
+                  max="100"
+                  disabled={saving}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Drawing & Material Reference */}
+          <div className="border-t border-gray-700 pt-4">
+            <p className="text-sm font-medium text-gray-400 mb-3">Part Reference</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-1">
+                <label className="block text-xs text-gray-500 mb-1">Drawing No.</label>
+                <input
+                  type="text"
+                  value={formData.drawing_number}
+                  onChange={e => setFormData(prev => ({ ...prev, drawing_number: e.target.value }))}
+                  placeholder="DWG-001"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  disabled={saving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Revision</label>
+                <input
+                  type="text"
+                  value={formData.revision}
+                  onChange={e => setFormData(prev => ({ ...prev, revision: e.target.value }))}
+                  placeholder="Rev A"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  disabled={saving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Setup Hours</label>
+                <input
+                  type="number"
+                  value={formData.setup_hours}
+                  onChange={e => setFormData(prev => ({ ...prev, setup_hours: Number(e.target.value) }))}
+                  placeholder="0"
+                  min="0"
+                  step="0.5"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  disabled={saving}
+                />
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="block text-xs text-gray-500 mb-1">Material</label>
+              <input
+                type="text"
+                value={formData.material}
+                onChange={e => setFormData(prev => ({ ...prev, material: e.target.value }))}
+                placeholder="e.g. 6061-T6 Aluminum, 4140 Steel"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                disabled={saving}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">
               Notes
             </label>
             <textarea
@@ -674,6 +868,13 @@ function EntryModal({ machineId, date, entry, projects, onSave, onLogHours, onCl
               disabled={saving}
             />
           </div>
+
+          {conflictWarning && (
+            <div className="flex items-center gap-2 p-3 bg-yellow-900/40 border border-yellow-700 rounded-lg text-yellow-300 text-sm">
+              <AlertTriangle size={16} className="flex-shrink-0" />
+              {conflictWarning}
+            </div>
+          )}
 
           <div className="flex justify-end space-x-3 pt-2">
             <button
@@ -731,6 +932,115 @@ function EntryModal({ machineId, date, entry, projects, onSave, onLogHours, onCl
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================
+// Gantt View Component
+// ============================================
+
+interface GanttViewProps {
+  weeklySchedule: WeeklyScheduleResponse | null;
+  weekDates: Date[];
+}
+
+function GanttView({ weeklySchedule, weekDates }: GanttViewProps) {
+  if (!weeklySchedule) return null;
+
+  const SHIFT_START = 8; // 8 AM
+  const SHIFT_HOURS = 12; // 12 hour shift
+  const SHIFT_END = SHIFT_START + SHIFT_HOURS;
+
+  const getPositionAndWidth = (startTime: string | null, endTime: string | null, plannedHours: number) => {
+    let startH = SHIFT_START;
+    let endH = startH + plannedHours;
+
+    if (startTime) {
+      const [h, m] = startTime.split(':').map(Number);
+      startH = h + m / 60;
+    }
+    if (endTime) {
+      const [h, m] = endTime.split(':').map(Number);
+      endH = h + m / 60;
+    } else {
+      endH = startH + plannedHours;
+    }
+
+    const left = ((startH - SHIFT_START) / SHIFT_HOURS) * 100;
+    const width = ((endH - startH) / SHIFT_HOURS) * 100;
+    return { left: Math.max(0, left), width: Math.min(width, 100 - Math.max(0, left)) };
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    completed: 'bg-green-600 border-green-500',
+    'in-progress': 'bg-yellow-600 border-yellow-500',
+    cancelled: 'bg-red-800 border-red-700 opacity-50',
+    scheduled: 'bg-blue-700 border-blue-600',
+  };
+
+  const hours = Array.from({ length: SHIFT_HOURS + 1 }, (_, i) => SHIFT_START + i);
+
+  return (
+    <div className="bg-gray-800 rounded-xl overflow-hidden">
+      {/* Time header */}
+      <div className="flex border-b border-gray-700">
+        <div className="w-36 flex-shrink-0 p-3 text-xs text-gray-500 border-r border-gray-700">Machine</div>
+        <div className="flex-1 relative">
+          <div className="flex">
+            {hours.map(h => (
+              <div key={h} className="flex-1 text-center py-2 text-xs text-gray-500 border-r border-gray-700/50">
+                {h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Machine rows */}
+      {weeklySchedule.machines.map(machine => (
+        <div key={machine.machine_id} className="border-b border-gray-700">
+          <div className="text-xs text-gray-400 px-3 py-1 bg-gray-700/50 border-b border-gray-700/50 font-medium">
+            {machine.machine_name}
+          </div>
+          {/* Day rows */}
+          {machine.days.map((day, dayIdx) => {
+            if (day.entries.length === 0) return null;
+            return (
+              <div key={dayIdx} className="flex items-center border-b border-gray-700/30 hover:bg-gray-700/20">
+                <div className="w-36 flex-shrink-0 px-3 py-2 text-xs text-gray-500 border-r border-gray-700">
+                  {weekDates[dayIdx]?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </div>
+                <div className="flex-1 relative h-10 bg-gray-700/20">
+                  {/* Hour grid lines */}
+                  {hours.map(h => (
+                    <div key={h} className="absolute top-0 h-full border-l border-gray-700/30" style={{ left: `${((h - SHIFT_START) / SHIFT_HOURS) * 100}%` }} />
+                  ))}
+                  {/* Job bars */}
+                  {day.entries.map(entry => {
+                    const { left, width } = getPositionAndWidth(entry.start_time, entry.end_time, entry.planned_hours);
+                    const color = STATUS_COLORS[entry.status] || STATUS_COLORS.scheduled;
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`absolute top-1 h-8 rounded border text-xs flex items-center px-2 overflow-hidden ${color} cursor-pointer hover:brightness-110 transition-all`}
+                        style={{ left: `${left}%`, width: `${Math.max(width, 5)}%` }}
+                        title={`${entry.load_name || entry.project_name || 'Untitled'} — ${entry.planned_hours}h`}
+                      >
+                        <span className="truncate text-white font-medium">{entry.load_name || entry.project_name || '?'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
+      {weeklySchedule.machines.every(m => m.days.every(d => d.entries.length === 0)) && (
+        <div className="p-8 text-center text-gray-400">No schedule data to display in Gantt view.</div>
+      )}
     </div>
   );
 }
