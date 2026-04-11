@@ -55,6 +55,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: "-"
         with:
           tagName: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
           releaseName: "VMC Planner ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}"
@@ -70,7 +71,11 @@ jobs:
             **macOS**: Open the `.dmg`, drag VMC Planner to Applications.
             **Windows**: Run the `.msi` installer and follow the prompts.
 
-            > **macOS note**: If blocked by Gatekeeper, right-click the app → Open.
+            > **macOS note**: If you see "damaged and can't be opened", run this in Terminal:
+            > ```
+            > xattr -cr "/Applications/VMC Planner.app"
+            > ```
+            > Then try opening the app again.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
