@@ -315,6 +315,25 @@ pub fn update_schedule(
     conn.execute(&query, params.as_slice())
         .map_err(|e| format!("Failed to update schedule: {}", e))?;
 
+    // If actual_hours was updated, recalculate the linked project's actual_hours
+    if input.actual_hours.is_some() {
+        let project_id: Option<i64> = conn
+            .query_row("SELECT project_id FROM schedules WHERE id = ?1", [id], |row| row.get(0))
+            .ok()
+            .flatten();
+        if let Some(pid) = project_id {
+            let _ = conn.execute(
+                "UPDATE projects SET actual_hours = (
+                    SELECT COALESCE(SUM(actual_hours), 0)
+                    FROM schedules
+                    WHERE project_id = ?1 AND actual_hours IS NOT NULL
+                ), updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?1",
+                [pid],
+            );
+        }
+    }
+
     drop(conn);
     get_schedule(token, id, db)
 }

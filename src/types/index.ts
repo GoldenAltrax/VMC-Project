@@ -131,6 +131,7 @@ export interface Project {
   status: ProjectStatus;
   planned_hours: number;
   actual_hours: number;
+  part_name?: string | null;
   created_by: number | null;
   created_at: string;
   updated_at: string;
@@ -151,6 +152,7 @@ export interface CreateProjectInput {
   end_date?: string;
   status: ProjectStatus;
   planned_hours: number;
+  part_name?: string;
   assigned_machines?: number[];
   team_members?: number[];
 }
@@ -164,6 +166,7 @@ export interface UpdateProjectInput {
   status?: ProjectStatus;
   planned_hours?: number;
   actual_hours?: number;
+  part_name?: string;
 }
 
 // Schedule Types

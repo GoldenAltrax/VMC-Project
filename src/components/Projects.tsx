@@ -95,6 +95,7 @@ export function Projects() {
     setSelectedProject({
       id: 0,
       name: '',
+      part_name: null,
       client_id: null,
       client_name: null,
       description: null,
@@ -320,10 +321,10 @@ function ProjectTable({ projects, onView, onEdit, onDelete, canEdit, isAdmin }: 
     },
     {
       key: 'client_name',
-      label: 'Client',
+      label: 'Operation',
       type: 'select',
       options: filterOptions.clients,
-      placeholder: 'All Clients',
+      placeholder: 'All Operations',
     },
     {
       key: 'start_date',
@@ -378,7 +379,7 @@ function ProjectTable({ projects, onView, onEdit, onDelete, canEdit, isAdmin }: 
                   onSort={setSort}
                 />
                 <SortableHeader
-                  label="Client"
+                  label="Operation"
                   sortKey="client_name"
                   currentSort={sort}
                   onSort={setSort}
@@ -425,10 +426,15 @@ function ProjectTable({ projects, onView, onEdit, onDelete, canEdit, isAdmin }: 
                   <tr key={project.id} className="border-t border-gray-700 hover:bg-gray-700/50">
                     <td className="p-4">
                       <button
-                        className="text-blue-400 hover:text-blue-300 font-medium"
+                        className="text-blue-400 hover:text-blue-300 font-medium text-left"
                         onClick={() => onView(project)}
                       >
                         {project.name}
+                        {project.part_name && (
+                          <span className="block text-xs text-gray-500 font-normal mt-0.5">
+                            {project.part_name}
+                          </span>
+                        )}
                       </button>
                     </td>
                     <td className="p-4">{project.client_name || '-'}</td>
@@ -557,7 +563,7 @@ function ProjectDetails({ project, machines, onBack, onEdit, onDelete, canEdit, 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div>
-            <h3 className="text-gray-400 text-sm mb-1">Client</h3>
+            <h3 className="text-gray-400 text-sm mb-1">Operation</h3>
             <p>{project.client_name || 'Not assigned'}</p>
           </div>
           <div>
@@ -642,6 +648,7 @@ interface ProjectFormProps {
 function ProjectForm({ project, machines, clients, onSave, onCancel, saving, error, canEdit }: ProjectFormProps) {
   const [formData, setFormData] = useState({
     name: project.name,
+    part_name: project.part_name || '',
     client_id: project.client_id,
     description: project.description || '',
     start_date: project.start_date || '',
@@ -652,6 +659,7 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
     assigned_machines: project.assigned_machines || [],
     actual_completion_date: (project as any).actual_completion_date || '',
   });
+  const [partNameError, setPartNameError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -659,6 +667,7 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
       ...prev,
       [name]: type === 'number' ? Number(value) : value,
     }));
+    if (name === 'part_name') setPartNameError(null);
   };
 
   const handleClientChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -681,6 +690,11 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!formData.part_name.trim()) {
+      setPartNameError('Part Name is required');
+      return;
+    }
+
     // Auto-set actual_completion_date when status is 'completed' and no date exists
     let actualCompletionDate = formData.actual_completion_date || undefined;
     if (formData.status === 'completed' && !actualCompletionDate) {
@@ -689,6 +703,7 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
 
     const input: (CreateProjectInput | UpdateProjectInput) & { actual_completion_date?: string } = {
       name: formData.name,
+      part_name: formData.part_name || undefined,
       client_id: formData.client_id || undefined,
       description: formData.description || undefined,
       start_date: formData.start_date || undefined,
@@ -737,7 +752,27 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
 
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-1">
-                Client
+                Part Name *
+              </label>
+              <input
+                type="text"
+                name="part_name"
+                value={formData.part_name}
+                onChange={handleChange}
+                className={`w-full bg-gray-700 border rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  partNameError ? 'border-red-500' : 'border-gray-600'
+                }`}
+                disabled={saving}
+                placeholder="e.g. Shaft, Housing, Bracket"
+              />
+              {partNameError && (
+                <p className="text-xs text-red-400 mt-1">{partNameError}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Operation
               </label>
               <select
                 name="client_id"
@@ -746,7 +781,7 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
                 className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={saving}
               >
-                <option value="">Select a client</option>
+                <option value="">Select an operation</option>
                 {clients.map(client => (
                   <option key={client.id} value={client.id}>{client.name}</option>
                 ))}
@@ -771,33 +806,16 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  name="start_date"
-                  value={formData.start_date}
-                  onChange={handleChange}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={saving}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-400 mb-1">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  name="end_date"
-                  value={formData.end_date}
-                  onChange={handleChange}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  disabled={saving}
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">
+                Date Range
+              </label>
+              <DateRangePicker
+                startDate={formData.start_date}
+                endDate={formData.end_date}
+                onChange={({ start, end }) => setFormData(prev => ({ ...prev, start_date: start, end_date: end }))}
+                disabled={saving}
+              />
             </div>
 
             {formData.status === 'completed' && (
@@ -917,6 +935,149 @@ function ProjectForm({ project, machines, clients, onSave, onCancel, saving, err
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// ============================================
+// Date Range Picker Component
+// ============================================
+
+interface DateRangePickerProps {
+  startDate: string;
+  endDate: string;
+  onChange: (range: { start: string; end: string }) => void;
+  disabled?: boolean;
+}
+
+function DateRangePicker({ startDate, endDate, onChange, disabled }: DateRangePickerProps) {
+  const todayDate = new Date();
+  const [viewMonth, setViewMonth] = useState(() => {
+    if (startDate) return new Date(startDate + 'T00:00:00');
+    return new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+  });
+  const [hoverDate, setHoverDate] = useState<Date | null>(null);
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const formatLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseDate = (s: string) => (s ? new Date(s + 'T00:00:00') : null);
+
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+
+  const firstDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const startDayOfWeek = (firstDay.getDay() + 6) % 7; // Mon=0 ... Sun=6
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
+
+  const cells: (Date | null)[] = [];
+  for (let i = 0; i < startDayOfWeek; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(new Date(viewMonth.getFullYear(), viewMonth.getMonth(), d));
+  }
+  while (cells.length < 42) cells.push(null);
+
+  const handleDayClick = (date: Date) => {
+    if (disabled) return;
+    const dateStr = formatLocal(date);
+    if (!start || (start && end)) {
+      onChange({ start: dateStr, end: '' });
+    } else {
+      if (date >= start) {
+        onChange({ start: startDate, end: dateStr });
+      } else {
+        onChange({ start: dateStr, end: '' });
+      }
+    }
+  };
+
+  const isStart = (d: Date) => !!start && formatLocal(d) === startDate;
+  const isEnd = (d: Date) => !!end && formatLocal(d) === endDate;
+  const isInRange = (d: Date) => {
+    if (start && end) return d > start && d < end;
+    if (start && hoverDate && !end) {
+      const lo = start < hoverDate ? start : hoverDate;
+      const hi = start < hoverDate ? hoverDate : start;
+      return d > lo && d < hi;
+    }
+    return false;
+  };
+  const isToday = (d: Date) => formatLocal(d) === formatLocal(todayDate);
+
+  const prevMonth = () => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1));
+  const nextMonth = () => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1));
+
+  const monthName = viewMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const formatDisplay = (s: string) => {
+    if (!s) return '–';
+    const d = new Date(s + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  return (
+    <div className="bg-gray-700 rounded-lg p-3 select-none">
+      <div className="flex items-center justify-between mb-2">
+        <button
+          type="button"
+          onClick={prevMonth}
+          disabled={disabled}
+          className="p-1 hover:bg-gray-600 rounded text-gray-300 hover:text-white text-lg leading-none"
+        >
+          ‹
+        </button>
+        <span className="text-sm font-medium text-gray-200">{monthName}</span>
+        <button
+          type="button"
+          onClick={nextMonth}
+          disabled={disabled}
+          className="p-1 hover:bg-gray-600 rounded text-gray-300 hover:text-white text-lg leading-none"
+        >
+          ›
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => (
+          <div key={d} className="text-center text-xs text-gray-500 py-1">{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-px">
+        {cells.map((date, i) => {
+          if (!date) return <div key={i} />;
+          const isSt = isStart(date);
+          const isEn = isEnd(date);
+          const inRange = isInRange(date);
+          const isTd = isToday(date);
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={disabled}
+              onClick={() => handleDayClick(date)}
+              onMouseEnter={() => setHoverDate(date)}
+              onMouseLeave={() => setHoverDate(null)}
+              className={`
+                relative text-xs py-1.5 text-center rounded transition-colors
+                ${isSt || isEn
+                  ? 'bg-blue-600 text-white font-semibold'
+                  : inRange
+                  ? 'bg-blue-500/20 text-blue-200'
+                  : 'text-gray-300 hover:bg-gray-600'}
+                ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+              `}
+            >
+              {date.getDate()}
+              {isTd && !isSt && !isEn && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-400 block" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {(startDate || endDate) && (
+        <p className="mt-2 text-xs text-gray-400 text-center">
+          {formatDisplay(startDate)} → {formatDisplay(endDate)}
+        </p>
+      )}
     </div>
   );
 }

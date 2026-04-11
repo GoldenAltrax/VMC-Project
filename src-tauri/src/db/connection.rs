@@ -90,6 +90,7 @@ fn run_migrations(conn: &Connection) {
         "ALTER TABLE schedules ADD COLUMN cam_actual_hours REAL",
         "ALTER TABLE schedules ADD COLUMN cam_buffer_percentage REAL",
         "ALTER TABLE schedules ADD COLUMN job_type TEXT",
+        "ALTER TABLE projects ADD COLUMN part_name TEXT",
     ];
     for sql in &migrations {
         let _ = conn.execute_batch(sql);

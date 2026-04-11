@@ -13,6 +13,7 @@ pub struct Project {
     pub planned_hours: f64,
     pub actual_hours: f64,
     pub actual_completion_date: Option<String>,
+    pub part_name: Option<String>,
     pub created_by: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
@@ -31,6 +32,7 @@ impl Project {
             planned_hours: row.get("planned_hours")?,
             actual_hours: row.get("actual_hours")?,
             actual_completion_date: row.get("actual_completion_date").ok().flatten(),
+            part_name: row.get("part_name").ok().flatten(),
             created_by: row.get("created_by")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
@@ -57,6 +59,7 @@ pub struct CreateProjectInput {
     pub end_date: Option<String>,
     pub status: String,
     pub planned_hours: f64,
+    pub part_name: Option<String>,
     pub assigned_machines: Option<Vec<i64>>,
     pub team_members: Option<Vec<i64>>,
 }
@@ -72,6 +75,7 @@ pub struct UpdateProjectInput {
     pub planned_hours: Option<f64>,
     pub actual_hours: Option<f64>,
     pub actual_completion_date: Option<String>,
+    pub part_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

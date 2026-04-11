@@ -146,8 +146,8 @@ pub fn create_project(
     }
 
     conn.execute(
-        "INSERT INTO projects (name, client_id, description, start_date, end_date, status, planned_hours, created_by)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO projects (name, client_id, description, start_date, end_date, status, planned_hours, part_name, created_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             input.name,
             input.client_id,
@@ -156,6 +156,7 @@ pub fn create_project(
             input.end_date,
             input.status,
             input.planned_hours,
+            input.part_name,
             user.id
         ],
     )
@@ -171,6 +172,19 @@ pub fn create_project(
                 params![new_id, machine_id],
             )
             .ok();
+        }
+
+        // Auto-create schedule entries on start_date for each assigned machine
+        if let Some(ref start_date) = input.start_date {
+            let load_name = input.part_name.clone().unwrap_or_else(|| input.name.clone());
+            for machine_id in machines {
+                conn.execute(
+                    "INSERT INTO schedules (machine_id, project_id, date, load_name, planned_hours, status, created_by)
+                     VALUES (?1, ?2, ?3, ?4, ?5, 'scheduled', ?6)",
+                    params![machine_id, new_id, start_date, load_name, input.planned_hours, user.id],
+                )
+                .ok();
+            }
         }
     }
 
@@ -250,6 +264,10 @@ pub fn update_project(
         updates.push("actual_completion_date = ?");
         values.push(Box::new(completion_date.clone()));
     }
+    if let Some(ref pn) = input.part_name {
+        updates.push("part_name = ?");
+        values.push(Box::new(pn.clone()));
+    }
 
     if updates.is_empty() {
         return Err("No fields to update".to_string());
@@ -262,6 +280,22 @@ pub fn update_project(
     let params: Vec<&dyn rusqlite::ToSql> = values.iter().map(|v| v.as_ref()).collect();
     conn.execute(&query, params.as_slice())
         .map_err(|e| format!("Failed to update project: {}", e))?;
+
+    // Propagate planned_hours change to linked schedules
+    if let Some(planned) = input.planned_hours {
+        let _ = conn.execute(
+            "UPDATE schedules SET planned_hours = ?1 WHERE project_id = ?2",
+            params![planned, id],
+        );
+    }
+
+    // Propagate part_name change to linked schedules load_name
+    if let Some(ref pn) = input.part_name {
+        let _ = conn.execute(
+            "UPDATE schedules SET load_name = ?1 WHERE project_id = ?2",
+            params![pn, id],
+        );
+    }
 
     drop(conn);
     get_project(token, id, db)
@@ -292,6 +326,25 @@ pub fn assign_machines_to_project(
     let user = validate_session(&conn, &token)?;
     require_admin(&user)?;
 
+    // Fetch project details needed for schedule creation
+    let project_info: Option<(Option<String>, f64, Option<String>, String)> = conn
+        .query_row(
+            "SELECT start_date, planned_hours, part_name, name FROM projects WHERE id = ?1",
+            [project_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .ok();
+
+    // Collect previously assigned machines before clearing
+    let mut prev_stmt = conn
+        .prepare("SELECT machine_id FROM project_machines WHERE project_id = ?1")
+        .map_err(|e| e.to_string())?;
+    let prev_machines: Vec<i64> = prev_stmt
+        .query_map([project_id], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
     // Remove existing assignments
     conn.execute(
         "DELETE FROM project_machines WHERE project_id = ?1",
@@ -300,12 +353,45 @@ pub fn assign_machines_to_project(
     .map_err(|e| e.to_string())?;
 
     // Add new assignments
-    for machine_id in machine_ids {
+    for machine_id in &machine_ids {
         conn.execute(
             "INSERT INTO project_machines (project_id, machine_id) VALUES (?1, ?2)",
             params![project_id, machine_id],
         )
         .map_err(|e| format!("Failed to assign machine: {}", e))?;
+    }
+
+    // Sync schedules: create entries for newly added machines, remove for removed machines
+    if let Some((Some(start_date), planned_hours, part_name, project_name)) = project_info {
+        let load_name = part_name.unwrap_or(project_name);
+
+        // Remove schedules for machines no longer assigned to this project
+        for removed_id in prev_machines.iter().filter(|id| !machine_ids.contains(id)) {
+            let _ = conn.execute(
+                "DELETE FROM schedules WHERE project_id = ?1 AND machine_id = ?2",
+                params![project_id, removed_id],
+            );
+        }
+
+        // Create schedule entries for newly added machines (skip if one already exists)
+        for machine_id in machine_ids.iter().filter(|id| !prev_machines.contains(id)) {
+            let exists: bool = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM schedules WHERE project_id = ?1 AND machine_id = ?2",
+                    params![project_id, machine_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map(|c| c > 0)
+                .unwrap_or(false);
+
+            if !exists {
+                let _ = conn.execute(
+                    "INSERT INTO schedules (machine_id, project_id, date, load_name, planned_hours, status, created_by)
+                     VALUES (?1, ?2, ?3, ?4, ?5, 'scheduled', ?6)",
+                    params![machine_id, project_id, start_date, load_name, planned_hours, user.id],
+                );
+            }
+        }
     }
 
     Ok(())
